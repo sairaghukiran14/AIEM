@@ -11,8 +11,9 @@
 ![TypeScript](https://img.shields.io/badge/TypeScript-000000?style=flat-square&logo=typescript&logoColor=white)
 ![Tailwind](https://img.shields.io/badge/Tailwind_4-000000?style=flat-square&logo=tailwindcss&logoColor=white)
 ![MongoDB](https://img.shields.io/badge/MongoDB-000000?style=flat-square&logo=mongodb&logoColor=white)
+![License: MIT](https://img.shields.io/badge/License-MIT-000000?style=flat-square)
 
-[What it is](#what-it-is) · [The curriculum](#the-curriculum) · [Concepts](#core-concepts) · [Architecture](#architecture) · [Getting started](#getting-started) · [Authoring content](#authoring-content) · [Testing](#testing-and-verification) · [Status](#status-and-known-limitations)
+[What it is](#what-it-is) · [The curriculum](#the-curriculum) · [Concepts](#core-concepts) · [Architecture](#architecture) · [Getting started](#getting-started) · [Authoring content](#authoring-content) · [Testing](#testing-and-verification) · [Status](#status-and-known-limitations) · [License](#license)
 
 </div>
 
@@ -448,4 +449,9 @@ Being upfront about what this is and isn't:
 - **The built-in PDF font covers Latin-1 only.** Names in other scripts appear as `?` in the PDF (the web page shows them correctly). Embedding a Unicode font would fix it.
 - **Public by design:** a certificate's link exposes the holder's name, credential, score and date to anyone who has it.
 
-No license has been specified for this repository yet.
+
+---
+
+## License
+
+Released under the [MIT License](LICENSE). You may use, copy, modify and distribute this project, including the course content, provided the copyright notice is kept.
