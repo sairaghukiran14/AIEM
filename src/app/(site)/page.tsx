@@ -255,8 +255,8 @@ export default function HomePage() {
               <Award className="mx-auto size-8" />
               <p className="mt-3 font-semibold">Certificate of completion</p>
               <p className="mt-1 text-xs leading-relaxed text-text-dim">
-                One per track gate you pass, and a course certificate after all {tracks.length}. Each has a
-                public verification link and a PDF.
+                One per track gate you pass, and a course certificate after all {tracks.length} and the
+                capstone. Each has a public verification link and a PDF.
               </p>
               <Link href="/verify" className="mt-3 inline-block text-xs font-medium underline">
                 Verify a certificate
@@ -311,6 +311,23 @@ export default function HomePage() {
             );
           })}
         </ol>
+
+        <Link
+          href="/capstone"
+          className="card mt-3 flex items-center gap-4 border-2 !border-text p-4 transition-colors hover:bg-bg-hover"
+        >
+          <span className="w-8 shrink-0 text-2xl font-semibold tabular-nums text-text-dim">★</span>
+          <span className="flex size-10 shrink-0 items-center justify-center rounded-lg bg-accent-dim">
+            <Award className="size-5" />
+          </span>
+          <span className="min-w-0 flex-1">
+            <span className="block font-medium leading-snug">Capstone: ship a support copilot</span>
+            <span className="block text-sm text-text-muted">
+              Thirty decisions across every track, plus portfolio projects. Earns the course certificate.
+            </span>
+          </span>
+          <span className="chip">Final</span>
+        </Link>
       </section>
 
       {/* ------------------------------------------------------------- CTA */}
@@ -319,7 +336,7 @@ export default function HomePage() {
           Start with Track 1 today.
         </h2>
         <p className="mx-auto mt-5 max-w-xl text-lg text-white/70">
-          {tracks[0].lessons.length} lessons, {courseTotals.challenges - 1} challenges and a gate.
+          {tracks[0].lessons.length} lessons, {tracks[0].lessons.length * 3} challenges and a gate.
           Free to start, and your progress is saved the moment you sign up.
         </p>
         <div className="mt-9 flex flex-wrap justify-center gap-3">

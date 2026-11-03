@@ -1,5 +1,6 @@
 import "server-only";
 
+import { allGatesPassed } from "@/lib/certificate-core";
 import { connectDB } from "@/lib/db";
 import { getTrack, tracks } from "@/content";
 import { Progress } from "@/models/Progress";
@@ -66,6 +67,13 @@ export function isGateUnlocked(trackSlug: string, progress: UserProgress): boole
   const track = getTrack(trackSlug);
   if (!track || !track.gate) return false;
   return track.lessons.every((l) => progress.completedLessons.has(l.slug));
+}
+
+/** The capstone opens once every track gate has been passed (or in review mode). */
+export function isCapstoneUnlocked(progress: UserProgress): boolean {
+  if (reviewUnlockAll()) return true;
+  const gateIds = tracks.flatMap((t) => (t.gate ? [t.gate.id] : []));
+  return allGatesPassed(gateIds, progress.passed);
 }
 
 export function isGatePassed(trackSlug: string, progress: UserProgress): boolean {

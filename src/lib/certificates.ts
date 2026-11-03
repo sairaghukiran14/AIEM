@@ -2,8 +2,8 @@ import "server-only";
 
 import { randomBytes } from "node:crypto";
 
-import { tracks } from "@/content";
-import { allGatesPassed, certIdFromBytes, courseScorePercent, scorePercent } from "@/lib/certificate-core";
+import { capstone, tracks } from "@/content";
+import { allGatesPassed, certIdFromBytes, scorePercent } from "@/lib/certificate-core";
 import { connectDB } from "@/lib/db";
 import { getUserProgress } from "@/lib/progress";
 import { Certificate, type CertificateDoc } from "@/models/Certificate";
@@ -78,7 +78,7 @@ async function ensureCertificate(
 
 /**
  * Issues every certificate this person has earned and does not yet hold: one per
- * passed track gate, and the course certificate once all gates are passed.
+ * passed track gate, and the course certificate once all gates and the capstone are passed.
  *
  * Idempotent, so it is safe to call after every gate pass and whenever the
  * certificates page loads. That makes it self-healing: if issuing failed at the
@@ -103,13 +103,15 @@ export async function reconcileCertificates(userId: string, holderName: string):
     );
   }
 
+  // The course certificate needs every track gate AND the capstone. Its score is
+  // the capstone score, the one assessment that spans the whole course.
   const gateIds = gated.map((t) => t.gate!.id);
-  if (allGatesPassed(gateIds, progress.passed)) {
+  if (allGatesPassed([...gateIds, capstone.id], progress.passed)) {
     issued.push(
       await ensureCertificate(userId, "course", "", {
         holderName,
         title: COURSE_TITLE,
-        score: courseScorePercent(gateIds.map((id) => progress.best.get(id) ?? 0)),
+        score: scorePercent(progress.best.get(capstone.id) ?? 0, 1),
       })
     );
   }

@@ -49,8 +49,8 @@ export default async function CertificatesPage() {
       <header>
         <h1 className="text-3xl font-semibold tracking-tight">My certificates</h1>
         <p className="mt-1 max-w-2xl text-text-muted">
-          Pass a track&apos;s gate to earn that track&apos;s certificate. Pass all {tracks.length} gates to
-          earn the course certificate. Each one has a public link and a PDF.
+          Pass a track&apos;s gate to earn that track&apos;s certificate. Pass all {tracks.length} gates and the
+          capstone to earn the course certificate. Each one has a public link and a PDF.
         </p>
         <p className="mt-3 text-sm font-medium">
           {earnedTracks} of {tracks.length} track certificates earned
@@ -87,7 +87,11 @@ export default async function CertificatesPage() {
             <div>
               <p className="font-medium">{COURSE_TITLE}</p>
               <p className="text-sm text-text-muted">
-                Pass all {tracks.length} track gates ({tracks.length - earnedTracks} to go).
+                Pass all {tracks.length} track gates ({tracks.length - earnedTracks} to go) and the{" "}
+                <Link href="/capstone" className="font-medium text-text underline">
+                  capstone
+                </Link>
+                .
               </p>
             </div>
           </div>

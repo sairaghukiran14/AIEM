@@ -4,7 +4,7 @@ import { CheckCircle2, Circle, Clock, FileText, Lock } from "lucide-react";
 
 import { ChallengeRunner } from "@/components/challenges/ChallengeRunner";
 import { TrackIcon } from "@/components/TrackIcon";
-import { getTrack, toClientChallenge, trackXp } from "@/content";
+import { getTrack, toClientChallenge, tracks, trackXp } from "@/content";
 import { getCurrentUser } from "@/lib/auth";
 import { isGatePassed, isGateUnlocked, isTrackUnlocked, loadProgress } from "@/lib/progress";
 
@@ -112,11 +112,22 @@ export default async function TrackPage({ params }: Props) {
         <section id="gate" className="scroll-mt-24">
           <h2 className="mb-4 text-lg font-semibold">Track gate</h2>
           {gateUnlocked ? (
-            <ChallengeRunner
-              challenge={toClientChallenge(track.gate)}
-              signedIn={Boolean(user)}
-              passed={gatePassed}
-            />
+            <>
+              <ChallengeRunner
+                challenge={toClientChallenge(track.gate)}
+                signedIn={Boolean(user)}
+                passed={gatePassed}
+              />
+              {gatePassed && track.order === tracks.length && (
+                <p className="mt-4 text-sm">
+                  That was the last track.{" "}
+                  <Link href="/capstone" className="font-semibold underline">
+                    Take the capstone
+                  </Link>{" "}
+                  to earn the course certificate.
+                </p>
+              )}
+            </>
           ) : (
             <div className="card flex items-center gap-4 p-5">
               <Lock className="size-6 shrink-0 text-text-dim" />

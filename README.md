@@ -13,7 +13,7 @@
 ![MongoDB](https://img.shields.io/badge/MongoDB-000000?style=flat-square&logo=mongodb&logoColor=white)
 ![License: MIT](https://img.shields.io/badge/License-MIT-000000?style=flat-square)
 
-[What it is](#what-it-is) · [The curriculum](#the-curriculum) · [Concepts](#core-concepts) · [Architecture](#architecture) · [Getting started](#getting-started) · [Authoring content](#authoring-content) · [Testing](#testing-and-verification) · [Status](#status-and-known-limitations) · [License](#license)
+[What it is](#what-it-is) · [The curriculum](#the-curriculum) · [Concepts](#core-concepts) · [Architecture](#architecture) · [Getting started](#getting-started) · [Capstone](#the-capstone-and-portfolio-projects) · [Authoring content](#authoring-content) · [Testing](#testing-and-verification) · [Status](#status-and-known-limitations) · [License](#license)
 
 </div>
 
@@ -21,13 +21,13 @@
 
 ## What it is
 
-AIEM is a full-stack learning platform. A learner signs up, works through eight tracks of lessons, proves each one with scored challenges, passes a gate quiz to unlock the next track, and earns a **public, verifiable certificate** with a downloadable PDF.
+AIEM is a full-stack learning platform. A learner signs up, works through eight tracks of lessons, proves each one with scored challenges, passes a gate quiz to unlock the next track, finishes with a **capstone exam**, and earns **public, verifiable certificates** with downloadable PDFs.
 
 | | |
 |---|---|
 | **8** tracks, beginner to advanced | **48** lessons |
-| **152** scored challenges (144 in lessons + 8 gates) | **15** bespoke interactive visuals |
-| **30** step-throughs, **31** calculators, **32** sorting exercises | **9,280** XP available |
+| **153** scored challenges (144 in lessons, 8 gates and the capstone) | **15** bespoke interactive visuals |
+| **30** step-throughs, **31** calculators, **32** sorting exercises | **9,680** XP available |
 
 Every lesson has the same five parts, built so that you can *explain* a topic under interview pressure, not just recognise it:
 
@@ -58,6 +58,8 @@ Tracks unlock in order. Passing a track's gate (a 10-question quiz, 70% to pass)
 
 Each track also ships a printable **cheatsheet** at `/cheatsheets/<track>`.
 
+After the eighth gate the **capstone** opens: thirty scenario questions on one case study that cut across every track. See [the capstone and portfolio projects](#the-capstone-and-portfolio-projects).
+
 ---
 
 ## Core concepts
@@ -79,7 +81,7 @@ Sorters are **practice only**: they are not scored or stored. Scored work happen
 
 | Kind | How it is graded |
 |---|---|
-| **Quiz** (and the track **gate**) | On the **server**. Per-question explanations are revealed only after submitting. |
+| **Quiz** (the track **gate** and the **capstone**) | On the **server**. Per-question explanations are revealed only after submitting. |
 | **Spot the bug** | On the server: the learner picks the buggy line *and* the reason; both are scored. |
 | **Code** | In the **browser**, inside a sandboxed Web Worker with a 2.5 s timeout, against visible test cases. See [limitations](#status-and-known-limitations). |
 
@@ -92,16 +94,30 @@ Because certificates are the product's promise, the scoring is designed so a lea
 - **Answer keys never leave the server.** Content is converted to a client-safe shape before it reaches the browser; correct answers, explanations and reference solutions are absent from the page payload. (This was checked by fetching every lesson page and searching the HTML for answer keys.)
 - **Answer positions are shuffled server-side, and balanced.** Hand-written content puts the right answer in the same slot far too often (option B for between 70% and 97% of questions, depending on the track), so "always pick B" would nearly pass a gate. Options are now reordered with a seeded, *balanced* permutation per quiz, so each position is used about equally. The shuffle is deterministic, so the page that serves a question and the route that grades it always agree.
 - **The shuffle itself does not leak.** The browser only ever sees *display* positions. The server translates a submitted position back to the original option before grading. (An earlier design that sent original indices to the browser would have revealed the answer; it was removed.)
-- **Track locks are enforced by the API, not just hidden in the UI.** Submitting to a locked track returns `403`.
-- **Certificates rest on gates**, which are graded on the server, rather than on code-challenge XP.
+- **Locks are enforced by the API, not just hidden in the UI.** Submitting to a locked track, or to the capstone before all eight gates are passed, returns `403`.
+- **Certificates rest on the gates and the capstone**, which are graded on the server, rather than on code-challenge XP.
 
-### 4. Certificates
+### 4. The capstone and portfolio projects
+
+The capstone is one case study, **Northwind's support copilot**, and thirty decisions about it in six sections: the prompt and interface, grounding in documents, tools and actions, evaluation, adaptation, and production. Each question asks what a good engineer would *do* ("a refund call timed out and the customer was refunded twice; what should have been in place?"), not what a term means, and each section draws on several tracks.
+
+| | |
+|---|---|
+| Pass mark | **75%** (the track gates use 70%) |
+| XP | 400, awarded once |
+| Opens | after all eight track gates are passed |
+| Grading | on the server, with the same shuffled, non-leaking answer positions as the gates |
+
+Alongside it are five **portfolio project briefs** (a streaming chat app, a cited document Q&A bot, a guardrailed research agent, an evaluation harness, and a capstone support copilot). Each has tickable requirements, stretch goals, what to put in the README, and the questions an interviewer is likely to ask. **They are not graded**: the server cannot safely run what a learner builds, so nothing there counts toward the certificate, and the ticks are saved only in the learner's browser.
+
+### 5. Certificates
 
 ```mermaid
 flowchart LR
     G["Pass a track gate"] --> R["reconcileCertificates(user)"]
+    CAP["Pass the capstone"] --> R
     R --> T["Track certificate<br/>(one per track, per person)"]
-    R --> C{"All 8 gates passed?"}
+    R --> C{"All 8 gates and the capstone passed?"}
     C -- yes --> K["Course certificate"]
     T --> V["/verify/AIEM-XXXX-XXXX-XXXX<br/>public verification page"]
     K --> V
@@ -110,7 +126,8 @@ flowchart LR
 
 - **Public verification.** `/verify/<id>` shows the holder, credential, score and date to anyone with the link, plus a lookup form at `/verify`. A well-formed but unknown ID gets a friendly 404. If the database is unreachable the page says verification is *temporarily unavailable* rather than wrongly claiming the certificate is fake.
 - **IDs are unguessable and readable.** Format `AIEM-7K3Q-ZB2M-X9HD`: 12 random symbols from a 32-character alphabet with the look-alikes `I`, `O`, `0`, `1` removed. Each symbol is `byte % 32` of a random byte, which is exactly uniform because 256 is a multiple of 32.
-- **Issuing is idempotent and self-healing.** One function, `reconcileCertificates`, issues whatever a person has earned and doesn't yet hold. It runs when a gate is passed *and* when the certificates page loads, so a failed issue, or gates passed before certificates existed, are filled in on the next visit. A unique index on `(user, kind, track)` makes concurrent requests safe: the loser of a race simply reads the winner's certificate.
+- **The course certificate needs all eight gates and the capstone**, and its score is the capstone score. A capstone pass without the gates issues nothing.
+- **Issuing is idempotent and self-healing.** One function, `reconcileCertificates`, issues whatever a person has earned and doesn't yet hold. It runs when a gate or the capstone is passed *and* when the certificates page loads, so a failed issue, or gates passed before certificates existed, are filled in on the next visit. A unique index on `(user, kind, track)` makes concurrent requests safe: the loser of a race simply reads the winner's certificate.
 - **A real PDF**, generated server-side with [`pdf-lib`](https://pdf-lib.js.org/): A4 landscape, grayscale, with the AIEM block, name, credential, score, date, ID and verification URL. Long names wrap to two lines and absurd ones are truncated with an ellipsis, so text can never overflow the frame.
 - **Honest wording.** Certificates state they are for completing the course material and passing its assessments, and that they are *not an accredited qualification*.
 
@@ -169,12 +186,12 @@ sequenceDiagram
     API->>C: look up challenge (full answer key)
     API->>DB: load this user's progress
     API->>API: reject if the track is locked (403)
-    API->>API: reject a gate until all lessons are done (403)
+    API->>API: reject a gate until all lessons are done, and the capstone until all gates (403)
     API->>API: translate display positions to original options, then grade
     API->>DB: save the submission (every attempt is kept)
     API->>DB: award XP once, update the streak and badges
     API->>DB: mark the lesson complete if all 3 challenges passed
-    API->>DB: on a passed gate: badge + reconcile certificates
+    API->>DB: on a passed gate or the capstone: badge + reconcile certificates
     API-->>B: score, feedback, XP, lesson/track status, new certificates
 ```
 
@@ -276,7 +293,8 @@ Type definitions live in [`src/content/types.ts`](src/content/types.ts).
 │   │   ├── (site)/               everything else, with header and footer
 │   │   │   ├── tracks/           track list and track pages (with gates)
 │   │   │   ├── learn/[track]/[lesson]/   the five-section lesson page
-│   │   │   ├── dashboard/        XP, streak, badges, resume, certificates link
+│   │   │   ├── capstone/         the final exam and the portfolio project briefs
+│   │   ├── dashboard/        XP, streak, badges, resume, capstone and certificates links
 │   │   │   ├── certificates/     "my certificates" (reconciles, then lists)
 │   │   │   ├── verify/           public lookup and /verify/[certId]
 │   │   │   └── cheatsheets/      printable per-track cheatsheets
@@ -291,6 +309,8 @@ Type definitions live in [`src/content/types.ts`](src/content/types.ts).
 │   │   └── …                     BlockRenderer, CertificateCard, Logo, header
 │   ├── content/
 │   │   ├── types.ts              the content schema
+│   │   ├── capstone.ts           the 30-question capstone exam
+│   │   ├── projects.ts           portfolio project briefs
 │   │   ├── index.ts              track registry, lookups, client-safe serialisation
 │   │   └── tracks/<track>/       index.ts (gate, cheatsheet) + lessons/01…06
 │   ├── lib/                      auth · db · progress · shuffle · certificates*
@@ -405,7 +425,7 @@ Then register it in the track's `index.ts`. To add a whole track, create `src/co
 
 Conventions that keep the course consistent:
 
-- **Challenge ids** are `<prefix>-<n>-quiz | bug | code` and `<prefix>-gate`.
+- **Challenge ids** are `<prefix>-<n>-quiz | bug | code`, `<prefix>-gate` and `capstone-exam`.
 - **Quiz answer positions don't matter.** Write the correct option anywhere; the server balances positions at serve time.
 - **Code challenges** need a reference `solution` and tests. Tests compare results with `JSON.stringify`, so **object key order in expected values matters**; document the order in the starter.
 - **Calculator formulas** are JavaScript expressions over the input keys. They are authored in this repository and evaluated in the browser, so they must never come from user input.
@@ -419,10 +439,10 @@ Conventions that keep the course consistent:
 
 | Script | What it proves |
 |---|---|
-| `check-structure` | Challenge ids and lesson slugs are unique; every answer index and buggy-line number is in range |
+| `check-structure` | Challenge ids and lesson slugs are unique; every answer index and buggy-line number is in range; the capstone is well-formed (four options, explanation and scenario on every question); every project brief points at a real track |
 | `check-blocks` | Every calculator formula evaluates to a number with its defaults; every step-through highlight points at a real item; every sorter answer is a valid category; every visual key exists; every lesson has at least one interactive element, five interview questions and three challenges |
 | `test-solutions` | **Every code challenge's reference solution passes its own tests**, and its starter code does *not* (so no challenge is trivially solved). This caught several wrong expected values while the course was written |
-| `test-certificates` | Certificate issuing against an in-memory store with the same unique-index behaviour as MongoDB: idempotency, course certificate, a simulated race, an ID collision, ID uniformity |
+| `test-certificates` | Certificate issuing against an in-memory store with the same unique-index behaviour as MongoDB: idempotency, the course certificate requiring the capstone (and carrying its score), a simulated race, an ID collision, ID uniformity |
 | `test-certificate-pdf` | PDFs build and re-open from awkward input: non-Latin names, emoji, very long names, 200 characters with no spaces, an empty name |
 | `report-answer-balance` | Reports where correct answers land after the server shuffle (informational) |
 
@@ -434,16 +454,17 @@ Beyond these, every page was fetched and checked for a `200`, no lock screen, an
 
 Being upfront about what this is and isn't:
 
-**Built:** all 8 tracks, auth, server-side grading, progress, XP, streaks, badges, track gates, per-track cheatsheets, certificates with public verification and PDF.
+**Built:** all 8 tracks, the capstone exam, portfolio project briefs, auth, server-side grading, progress, XP, streaks, badges, track gates, per-track cheatsheets, certificates with public verification and PDF.
 
 **Not built yet**
 
-- A final capstone challenge, a projects section and a skill-assessment quiz were part of the original plan.
+- A skill-assessment quiz that recommends where to start was part of the original plan.
 - Email verification, password reset, and login rate limiting or lockout.
-- Automated **integration tests** against a real database, and a CI pipeline. Signup, scoring, progress and the gate flow were exercised against a real MongoDB for the first track during development. Track locking and certificate issuing were **not** run against a live database: the issuing logic is unit-tested against an in-memory store that mimics MongoDB's unique indexes, but nothing runs the full signup-to-certificate flow end to end.
+- Automated **integration tests** against a real database, and a CI pipeline. Signup, scoring, progress and the gate flow were exercised against a real MongoDB for the first track during development. Track locking, the capstone and certificate issuing were **not** run against a live database: the issuing logic is unit-tested against an in-memory store that mimics MongoDB's unique indexes, but nothing runs the full signup-to-certificate flow end to end.
 
 **Known limitations**
 
+- **Portfolio projects are not graded.** They are briefs with self-ticked checklists, saved only in the browser, and they do not affect the certificate.
 - **Code challenges are graded in the browser.** The server cannot safely run arbitrary learner code, so it records the pass count the client reports (after checking it is well-formed). XP from code challenges is therefore self-reported. Quizzes, bug hunts and gates are graded on the server and cannot be faked, which is why certificates depend on gates.
 - **Labs are simulated.** Visuals use hand-made or toy data (and say so); there are no live model calls.
 - **The built-in PDF font covers Latin-1 only.** Names in other scripts appear as `?` in the PDF (the web page shows them correctly). Embedding a Unicode font would fix it.

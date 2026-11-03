@@ -2,11 +2,11 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 
 import { getChallenge, quizOrders, reasonOrder } from "@/content";
-import type { Challenge } from "@/content/types";
+import type { Challenge, Quiz } from "@/content/types";
 import { getSessionUserId } from "@/lib/auth";
 import { connectDB } from "@/lib/db";
 import { reconcileCertificates } from "@/lib/certificates";
-import { awardXp, getUserProgress, grantBadge, isTrackUnlocked } from "@/lib/progress";
+import { awardXp, getUserProgress, grantBadge, isCapstoneUnlocked, isTrackUnlocked } from "@/lib/progress";
 import { Progress } from "@/models/Progress";
 import { Submission } from "@/models/Submission";
 import { User } from "@/models/User";
@@ -24,7 +24,7 @@ type Graded = {
   feedback: unknown;
 };
 
-function gradeQuiz(c: Extract<Challenge, { kind: "quiz" | "gate" }>, answer: unknown): Graded | null {
+function gradeQuiz(c: Quiz, answer: unknown): Graded | null {
   const parsed = z.array(z.number().int().nullable()).length(c.questions.length).safeParse(answer);
   if (!parsed.success) return null;
 
@@ -133,24 +133,32 @@ export async function POST(request: Request) {
     await connectDB();
     const before = await getUserProgress(userId);
 
-    // Unlocking is enforced here, not only by hiding pages: a track is closed until
-    // the previous track's gate has been passed.
-    if (!isTrackUnlocked(track.slug, before)) {
-      return NextResponse.json(
-        { error: "This track is locked. Pass the previous track's gate first." },
-        { status: 403 }
-      );
-    }
-
-    // The gate can't be attempted until every lesson in the track is done.
-    if (challenge.kind === "gate") {
-      const ready = track.lessons.every((l) => before.completedLessons.has(l.slug));
-      if (!ready) {
+    // Unlocking is enforced here, not only by hiding pages.
+    if (track) {
+      // A track is closed until the previous track's gate has been passed.
+      if (!isTrackUnlocked(track.slug, before)) {
         return NextResponse.json(
-          { error: "Complete every lesson in this track before the gate." },
+          { error: "This track is locked. Pass the previous track's gate first." },
           { status: 403 }
         );
       }
+
+      // The gate can't be attempted until every lesson in the track is done.
+      if (challenge.kind === "gate") {
+        const ready = track.lessons.every((l) => before.completedLessons.has(l.slug));
+        if (!ready) {
+          return NextResponse.json(
+            { error: "Complete every lesson in this track before the gate." },
+            { status: 403 }
+          );
+        }
+      }
+    } else if (!isCapstoneUnlocked(before)) {
+      // The capstone belongs to the course, not a track: it needs every gate.
+      return NextResponse.json(
+        { error: "Pass all eight track gates before the capstone." },
+        { status: 403 }
+      );
     }
 
     const alreadyPassed = before.passed.has(challenge.id);
@@ -160,7 +168,7 @@ export async function POST(request: Request) {
     await Submission.create({
       userId,
       challengeId: challenge.id,
-      trackSlug: track.slug,
+      trackSlug: track?.slug ?? "capstone",
       lessonSlug: lesson?.slug ?? "",
       kind: challenge.kind,
       score: graded.score,
@@ -175,7 +183,7 @@ export async function POST(request: Request) {
 
     // A lesson is complete once every one of its challenges has been passed.
     let lessonCompleted = false;
-    if (graded.passed && lesson) {
+    if (graded.passed && lesson && track) {
       const passed = new Set(before.passed).add(challenge.id);
       if (lesson.challenges.every((c) => passed.has(c.id))) {
         lessonCompleted = true;
@@ -190,10 +198,17 @@ export async function POST(request: Request) {
     }
 
     let trackCompleted = false;
+    let capstoneCompleted = false;
     let certificates: { certId: string; kind: string; title: string }[] = [];
-    if (graded.passed && challenge.kind === "gate") {
-      trackCompleted = true;
-      await grantBadge(userId, `track-${track.slug}`, `${track.title} complete`);
+    const earnsCertificate = graded.passed && (challenge.kind === "gate" || challenge.kind === "capstone");
+    if (earnsCertificate) {
+      if (challenge.kind === "capstone") {
+        capstoneCompleted = true;
+        await grantBadge(userId, "capstone", "Capstone complete");
+      } else if (track) {
+        trackCompleted = true;
+        await grantBadge(userId, `track-${track.slug}`, `${track.title} complete`);
+      }
 
       // The pass is already saved. A certificate problem must not turn it into an
       // error: log it, and the certificates page will issue it on its next visit.
@@ -217,6 +232,7 @@ export async function POST(request: Request) {
       attempt,
       lessonCompleted,
       trackCompleted,
+      capstoneCompleted,
       certificates,
       feedback: graded.feedback,
     });

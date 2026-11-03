@@ -32,13 +32,6 @@ export function allGatesPassed(gateIds: string[], passed: ReadonlySet<string>): 
   return gateIds.length > 0 && gateIds.every((id) => passed.has(id));
 }
 
-/** Course score: the mean of the best gate score (a 0-1 fraction) per track, as a whole percent. */
-export function courseScorePercent(bestFractions: number[]): number {
-  if (bestFractions.length === 0) return 0;
-  const mean = bestFractions.reduce((sum, f) => sum + f, 0) / bestFractions.length;
-  return Math.round(mean * 100);
-}
-
 export function formatIssueDate(date: Date | string): string {
   return new Date(date).toLocaleDateString("en-GB", {
     day: "numeric",

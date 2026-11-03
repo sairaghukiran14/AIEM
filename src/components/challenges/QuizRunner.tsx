@@ -60,8 +60,16 @@ export function QuizRunner({
     <div className="space-y-6">
       {challenge.questions.map((q, qi) => {
         const fb = feedback?.get(q.id);
+        // A case study is shown once, above the first question that uses it.
+        const showScenario = Boolean(q.scenario) && q.scenario !== challenge.questions[qi - 1]?.scenario;
         return (
-          <fieldset key={q.id} disabled={Boolean(result)} className="space-y-2">
+          <div key={q.id} className="space-y-4">
+            {showScenario && (
+              <div className="whitespace-pre-line rounded-xl border-2 border-text bg-bg-raised p-4 text-sm leading-relaxed">
+                {q.scenario}
+              </div>
+            )}
+          <fieldset disabled={Boolean(result)} className="space-y-2">
             <legend className="mb-2 text-sm font-medium">
               <span className="mr-2 text-text-dim">{qi + 1}.</span>
               {q.prompt}
@@ -110,6 +118,7 @@ export function QuizRunner({
               </p>
             )}
           </fieldset>
+          </div>
         );
       })}
 

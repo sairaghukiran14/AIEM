@@ -64,16 +64,30 @@ export default async function DashboardPage() {
         ))}
       </section>
 
-      <section className="card flex flex-wrap items-center justify-between gap-3 p-5">
-        <div>
-          <p className="font-semibold">Certificates</p>
-          <p className="text-sm text-text-muted">
-            One for each track gate you pass, and a course certificate after all {tracks.length}.
-          </p>
+      <section className="grid gap-4 sm:grid-cols-2">
+        <div className="card flex flex-col justify-between gap-3 p-5">
+          <div>
+            <p className="font-semibold">Capstone</p>
+            <p className="mt-1 text-sm text-text-muted">
+              Thirty decisions on one case study. Opens after all {tracks.length} track gates and, with them,
+              earns the course certificate.
+            </p>
+          </div>
+          <Link href="/capstone" className="btn btn-ghost self-start">
+            Open the capstone
+          </Link>
         </div>
-        <Link href="/certificates" className="btn btn-ghost">
-          View my certificates
-        </Link>
+        <div className="card flex flex-col justify-between gap-3 p-5">
+          <div>
+            <p className="font-semibold">Certificates</p>
+            <p className="mt-1 text-sm text-text-muted">
+              One for each track gate you pass, and a course certificate after the capstone.
+            </p>
+          </div>
+          <Link href="/certificates" className="btn btn-ghost self-start">
+            View my certificates
+          </Link>
+        </div>
       </section>
 
       {resumeTrack && resumeLesson && (

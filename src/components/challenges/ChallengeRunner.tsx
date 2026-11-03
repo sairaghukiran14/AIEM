@@ -12,6 +12,7 @@ import { QuizRunner } from "./QuizRunner";
 const KIND_LABEL: Record<ClientChallenge["kind"], string> = {
   quiz: "Quiz",
   gate: "Track gate",
+  capstone: "Capstone",
   "spot-the-bug": "Spot the bug",
   code: "Code",
 };

@@ -7,6 +7,7 @@ export type SubmitResult = {
   attempt: number;
   lessonCompleted: boolean;
   trackCompleted: boolean;
+  capstoneCompleted?: boolean;
   /** Certificates issued by this submission (empty unless a gate was just passed). */
   certificates?: { certId: string; kind: string; title: string }[];
   feedback: unknown;

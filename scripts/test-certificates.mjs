@@ -37,6 +37,7 @@ const Certificate = {
 };
 
 // ---- fake content + progress ---------------------------------------------------------------------
+const capstone = { id: "cap" };
 const tracks = ["a", "b", "c"].map((s, i) => ({ slug: s, order: i + 1, title: "Track " + s.toUpperCase(), gate: { id: s + "-gate" } }));
 let progress = { passed: new Set(), best: new Map() };
 
@@ -44,7 +45,7 @@ const core = (() => { const m = { exports: {} }; new Function("module", "exports
 
 const mods = {
   "server-only": {}, "node:crypto": { randomBytes },
-  "@/content": { tracks }, "@/lib/certificate-core": core,
+  "@/content": { tracks, capstone }, "@/lib/certificate-core": core,
   "@/lib/db": { connectDB: async () => {} },
   "@/lib/progress": { getUserProgress: async () => progress },
   "@/models/Certificate": { Certificate },
@@ -58,7 +59,6 @@ const ids = new Set(); for (let i = 0; i < 2000; i++) ids.add(core.certIdFromByt
 assert(ids.size === 2000, "2000 random ids are all distinct");
 assert([...ids].every(core.isValidCertId), "every generated id matches the public pattern");
 assert(!core.isValidCertId("AIEM-0000-1111-IIII") && !core.isValidCertId("aiem-7k3q-zb2m-x9hd") && !core.isValidCertId("AIEM-7K3Q-ZB2M"), "look-alike characters, lower case and short ids are rejected");
-assert(core.courseScorePercent([0.9, 0.8, 1]) === 90 && core.courseScorePercent([]) === 0, "course score is the rounded mean, 0 when empty");
 assert(core.allGatesPassed(["x", "y"], new Set(["x", "y"])) && !core.allGatesPassed(["x", "y"], new Set(["x"])) && !core.allGatesPassed([], new Set()), "course eligibility needs every gate, and at least one gate");
 const counts = new Array(32).fill(0); for (let b = 0; b < 256; b++) counts[b % 32]++;
 assert(counts.every((c) => c === 8), "byte-to-symbol mapping is exactly uniform (no modulo bias)");
@@ -80,9 +80,18 @@ assert(store[0].holderName === "Ada", "the name on an issued certificate does no
 
 progress = { passed: new Set(["a-gate", "b-gate", "c-gate"]), best: new Map([["a-gate", 0.9], ["b-gate", 0.8], ["c-gate", 1]]) };
 r = await reconcileCertificates(U, "Ada");
+assert(store.length === 3 && r.filter((c) => c.created).length === 2 && !store.some((d) => d.kind === "course"), "all gates passed but no capstone -> two more track certificates and NO course certificate");
+
+progress = { passed: new Set(["a-gate", "b-gate", "c-gate", "cap"]), best: new Map([["a-gate", 0.9], ["b-gate", 0.8], ["c-gate", 1], ["cap", 0.8]]) };
+r = await reconcileCertificates(U, "Ada");
 const course = store.find((d) => d.kind === "course");
-assert(store.length === 4 && r.filter((c) => c.created).length === 3, "all gates passed -> 2 more track certificates plus the course certificate");
-assert(course && course.finalScore === 90 && course.trackSlug === "" && course.title.includes("Complete Course"), "course certificate score is the mean (90) and it has no track");
+assert(store.length === 4 && r.filter((c) => c.created).length === 1, "all gates plus the capstone -> the course certificate is issued");
+assert(course && course.finalScore === 80 && course.trackSlug === "" && course.title.includes("Complete Course"), "course certificate carries the capstone score (80), not the gate average, and has no track");
+
+progress = { passed: new Set(["cap"]), best: new Map([["cap", 1]]) };
+const before = store.length;
+r = await reconcileCertificates("user-cap", "Cap Only");
+assert(r.length === 0 && store.length === before, "a capstone pass without the gates issues nothing");
 
 assert((await listCertificates(U)).length === 4 && (await getCertificate(firstId)).holderName === "Ada", "list and lookup return what was issued");
 

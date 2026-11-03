@@ -46,6 +46,11 @@ export function ResultBanner({ result, passPercent }: { result: SubmitResult; pa
           <Trophy className="size-4" /> Track complete! The next track is unlocked.
         </p>
       )}
+      {result.capstoneCompleted && (
+        <p className="mt-2 flex items-center gap-2 text-sm font-semibold">
+          <Trophy className="size-4" /> Capstone complete!
+        </p>
+      )}
       {result.certificates?.map((c) => (
         <p key={c.certId} className="mt-2 flex flex-wrap items-center gap-x-2 text-sm font-semibold">
           <Award className="size-4" />

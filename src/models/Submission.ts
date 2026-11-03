@@ -8,7 +8,7 @@ const SubmissionSchema = new Schema(
     lessonSlug: { type: String, default: "" },
     kind: {
       type: String,
-      enum: ["quiz", "spot-the-bug", "code", "prompt", "gate"],
+      enum: ["quiz", "spot-the-bug", "code", "prompt", "gate", "capstone"],
       required: true,
     },
     score: { type: Number, required: true },

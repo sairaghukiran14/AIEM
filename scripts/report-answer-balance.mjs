@@ -37,4 +37,6 @@ for (const track of readdirSync(join(root, "src/content/tracks"))) {
 }
 console.log("lesson-quiz correct position [A,B,C,D]:", quizDist);
 console.log("bug-reason correct position [A,B,C,D]:", bugDist);
-console.log("gates:", gates);
+const { capstone } = load(join(root, "src/content/capstone.ts"));
+const cap = [0,0,0,0]; quiz(capstone).forEach(p => cap[p]++); gates[capstone.id] = cap;
+console.log("gates and capstone:", gates);

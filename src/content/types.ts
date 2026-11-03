@@ -90,6 +90,11 @@ export type VisualKey =
 
 export type QuizQuestion = {
   id: string;
+  /**
+   * Optional shared context (a case study). Consecutive questions with the same
+   * `scenario` are shown under it once, so a long exam can follow one story.
+   */
+  scenario?: string;
   prompt: string;
   options: string[];
   /** Index into `options`. Never sent to the browser before submission. */
@@ -99,7 +104,8 @@ export type QuizQuestion = {
 
 export type Quiz = {
   id: string;
-  kind: "quiz" | "gate";
+  /** "capstone" is the final course assessment, which sits outside any track. */
+  kind: "quiz" | "gate" | "capstone";
   title: string;
   blurb: string;
   passPercent: number;

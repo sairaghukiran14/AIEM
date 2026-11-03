@@ -30,6 +30,31 @@ for (const track of readdirSync(join(root, "src/content/tracks"))) {
     }
   }
 }
+// ---- the capstone exam ----
+const { capstone } = load(join(root, "src/content/capstone.ts"));
+if (ids.has(capstone.id)) bad("capstone id collides with another challenge: " + capstone.id);
+if (capstone.kind !== "capstone") bad("capstone kind must be 'capstone'");
+if (capstone.questions.length < 20) bad("capstone has too few questions: " + capstone.questions.length);
+const qIds = new Set();
+for (const q of capstone.questions) {
+  if (qIds.has(q.id)) bad("capstone duplicate question id " + q.id); qIds.add(q.id);
+  if (q.options.length !== 4) bad(`capstone ${q.id}: expected 4 options`);
+  if (q.correctIndex < 0 || q.correctIndex >= q.options.length) bad(`capstone ${q.id}: correctIndex out of range`);
+  if (!q.explanation || q.explanation.length < 20) bad(`capstone ${q.id}: missing explanation`);
+  if (!q.scenario) bad(`capstone ${q.id}: missing scenario`);
+  bump("capstone", q.correctIndex);
+}
+
+// ---- portfolio project briefs must point at real tracks ----
+const { projects } = load(join(root, "src/content/projects.ts"));
+const trackDirs = new Set(readdirSync(join(root, "src/content/tracks")));
+const projectIds = new Set();
+for (const pr of projects) {
+  if (projectIds.has(pr.id)) bad("duplicate project id " + pr.id); projectIds.add(pr.id);
+  for (const t of pr.tracks) if (!trackDirs.has(t)) bad(`project ${pr.id} references unknown track ${t}`);
+  if (pr.requirements.length < 4 || pr.probes.length < 2) bad(`project ${pr.id} is too thin`);
+}
+
 console.log("correct-answer position distribution [A,B,C,D]:"); console.log(dist);
 console.log(problems ? problems + " structural problems" : "structure ok");
 if (problems) process.exitCode = 1;

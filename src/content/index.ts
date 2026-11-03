@@ -1,6 +1,7 @@
-import type { Challenge, Lesson, Track } from "@/content/types";
+import type { Challenge, Lesson, Quiz, Track } from "@/content/types";
 import { balancedOrders } from "@/lib/shuffle";
 
+import { capstone } from "./capstone";
 import { llmFoundations } from "./tracks/llm-foundations";
 import { promptEngineering } from "./tracks/prompt-engineering";
 import { embeddingsAndSearch } from "./tracks/embeddings-and-search";
@@ -43,12 +44,17 @@ export function getLessonNeighbours(track: Track, lesson: Lesson) {
 
 export type ChallengeLocation = {
   challenge: Challenge;
-  track: Track;
+  /** Null for the capstone, which belongs to the course rather than a track. */
+  track: Track | null;
   lesson: Lesson | null;
 };
 
-/** Finds any challenge — lesson challenge or track gate — by id. */
+export { capstone };
+
+/** Finds any challenge (lesson challenge, track gate or the capstone) by id. */
 export function getChallenge(id: string): ChallengeLocation | undefined {
+  if (capstone.id === id) return { challenge: capstone, track: null, lesson: null };
+
   for (const track of tracks) {
     if (track.gate?.id === id) {
       return { challenge: track.gate, track, lesson: null };
@@ -88,8 +94,8 @@ export const courseTotals = {
       t.lessons.reduce((m, l) => m + l.challenges.length, 0) +
       (t.gate ? 1 : 0),
     0
-  ),
-  xp: tracks.reduce((n, t) => n + trackXp(t), 0),
+  ) + 1, // the capstone
+  xp: tracks.reduce((n, t) => n + trackXp(t), 0) + capstone.xp,
 };
 
 /* ------------------------------------------- client-safe serialisation */
@@ -101,13 +107,13 @@ export const courseTotals = {
  */
 export type ClientQuiz = {
   id: string;
-  kind: "quiz" | "gate";
+  kind: "quiz" | "gate" | "capstone";
   title: string;
   blurb: string;
   passPercent: number;
   xp: number;
   /** Options are already in display order. The server maps them back when grading. */
-  questions: { id: string; prompt: string; options: string[] }[];
+  questions: { id: string; scenario?: string; prompt: string; options: string[] }[];
 };
 
 export type ClientSpotTheBug = {
@@ -144,7 +150,7 @@ export type ClientChallenge =
  * Display order of each quiz question's options: `result[q][displayPosition]` is the
  * original option index. Deterministic, so serving and grading always agree.
  */
-export function quizOrders(challenge: Extract<Challenge, { kind: "quiz" | "gate" }>): number[][] {
+export function quizOrders(challenge: Quiz): number[][] {
   return balancedOrders(
     challenge.questions.map((q) => q.correctIndex),
     challenge.questions.map((q) => q.options.length),
@@ -161,6 +167,7 @@ export function toClientChallenge(challenge: Challenge): ClientChallenge {
   switch (challenge.kind) {
     case "quiz":
     case "gate":
+    case "capstone":
       return {
         id: challenge.id,
         kind: challenge.kind,
@@ -170,6 +177,7 @@ export function toClientChallenge(challenge: Challenge): ClientChallenge {
         xp: challenge.xp,
         questions: challenge.questions.map((q, qi) => ({
           id: q.id,
+          scenario: q.scenario,
           prompt: q.prompt,
           options: quizOrders(challenge)[qi].map((i) => q.options[i]),
         })),
