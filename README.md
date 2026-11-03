@@ -1,36 +1,451 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+<div align="center">
 
-## Getting Started
+# AIEM
 
-First, run the development server:
+### AI Engineering Mastery
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+**An interview-ready AI engineering course you learn by doing:** interactive lessons, scored challenges, track gates and verifiable certificates, from "what is a token?" to operating AI products in production.
+
+![Next.js](https://img.shields.io/badge/Next.js_16-000000?style=flat-square&logo=nextdotjs&logoColor=white)
+![React](https://img.shields.io/badge/React_19-000000?style=flat-square&logo=react&logoColor=white)
+![TypeScript](https://img.shields.io/badge/TypeScript-000000?style=flat-square&logo=typescript&logoColor=white)
+![Tailwind](https://img.shields.io/badge/Tailwind_4-000000?style=flat-square&logo=tailwindcss&logoColor=white)
+![MongoDB](https://img.shields.io/badge/MongoDB-000000?style=flat-square&logo=mongodb&logoColor=white)
+
+[What it is](#what-it-is) · [The curriculum](#the-curriculum) · [Concepts](#core-concepts) · [Architecture](#architecture) · [Getting started](#getting-started) · [Authoring content](#authoring-content) · [Testing](#testing-and-verification) · [Status](#status-and-known-limitations)
+
+</div>
+
+---
+
+## What it is
+
+AIEM is a full-stack learning platform. A learner signs up, works through eight tracks of lessons, proves each one with scored challenges, passes a gate quiz to unlock the next track, and earns a **public, verifiable certificate** with a downloadable PDF.
+
+| | |
+|---|---|
+| **8** tracks, beginner to advanced | **48** lessons |
+| **152** scored challenges (144 in lessons + 8 gates) | **15** bespoke interactive visuals |
+| **30** step-throughs, **31** calculators, **32** sorting exercises | **9,280** XP available |
+
+Every lesson has the same five parts, built so that you can *explain* a topic under interview pressure, not just recognise it:
+
+1. **Concept**: the idea, with something to play with.
+2. **Under the hood**: the mechanism interviewers actually probe (formulas, costs, trade-offs).
+3. **Code**: a runnable example.
+4. **Interview corner**: five real questions, a strong answer, a weak answer, and the likely follow-up.
+5. **Challenges**: a quiz, a spot-the-bug exercise and a code challenge, all scored.
+
+> The UI is deliberately **light-mode and strictly grayscale, with no gradients**. Correct and incorrect answers are never shown by colour alone: they use icons, labels and solid-versus-dashed borders, so the interface stays readable for everyone.
+
+---
+
+## The curriculum
+
+Tracks unlock in order. Passing a track's gate (a 10-question quiz, 70% to pass) opens the next one.
+
+| # | Track | Level | Lessons |
+|---|---|---|---|
+| 1 | **LLM Foundations** | Beginner | What an LLM Actually Does · Tokens & Tokenization · Context Windows & Memory · Sampling, Temperature & Determinism · Transformer Intuition: Attention · Choosing a Model |
+| 2 | **Prompt Engineering & Structured Output** | Beginner | Anatomy of a Prompt · Zero-shot, Few-shot & Examples · Reasoning & Chain-of-Thought · Structured Output & Validation · Prompt Injection & Trust Boundaries · Testing & Versioning Prompts |
+| 3 | **Embeddings & Vector Search** | Intermediate | What Embeddings Are · Similarity Metrics · Chunking Strategy · Vector Indexes & ANN · Hybrid Search & Reranking · Choosing & Evaluating Embeddings |
+| 4 | **RAG Systems** | Intermediate | The RAG Pipeline · Query Understanding · Retrieval Tuning & Context Assembly · Grounding & Citations · RAG Failure Modes & Debugging · Evaluating RAG |
+| 5 | **Tool Use & Agents** | Intermediate | Function Calling · The Agent Loop · Planning & Memory · Tool Design & MCP · Multi-Agent Patterns · Guardrails & Reliability |
+| 6 | **Evals & Observability** | Advanced | Evals Fundamentals · LLM-as-Judge · Metrics for Generated Text · Regression Testing in CI · Tracing & Observability · Online Evaluation & Feedback Loops |
+| 7 | **Fine-tuning & Model Adaptation** | Advanced | When to Fine-tune · Data for Fine-tuning · LoRA & QLoRA · Preference Optimization: RLHF & DPO · Distillation & Small Models · Evaluating & Deploying Fine-tunes |
+| 8 | **Production AI** | Advanced | Streaming & Latency · Caching & Cost Control · Reliability: Rate Limits & Retries · Guardrails & Safety · Scaling & Architecture · Operating AI Products |
+
+Each track also ships a printable **cheatsheet** at `/cheatsheets/<track>`.
+
+---
+
+## Core concepts
+
+### 1. Learning that is interactive, not a wall of text
+
+Besides ordinary text, tables, callouts and code, a lesson can contain four kinds of interactive block. Most are **data-driven**: a lesson declares the block in plain typed data and a shared component renders it, so adding interactivity to a lesson never needs a new React component.
+
+| Block | What the learner does | Example |
+|---|---|---|
+| **Visual** (bespoke component) | Manipulate a simulation | Drag a query through an embedding space and watch its nearest neighbours change |
+| **Stepper** | Walk forward and back through a process, or auto-play it | HNSW search, RAG debugging, an MCP connection |
+| **Calculator** | Move sliders into live formulas | Index storage cost, Little's law for capacity, error budgets |
+| **Sorter** | Classify items, then check | "Which retriever finds this?" with an explanation for each item |
+
+Sorters are **practice only**: they are not scored or stored. Scored work happens in the challenges.
+
+### 2. Three kinds of scored challenge
+
+| Kind | How it is graded |
+|---|---|
+| **Quiz** (and the track **gate**) | On the **server**. Per-question explanations are revealed only after submitting. |
+| **Spot the bug** | On the server: the learner picks the buggy line *and* the reason; both are scored. |
+| **Code** | In the **browser**, inside a sandboxed Web Worker with a 2.5 s timeout, against visible test cases. See [limitations](#status-and-known-limitations). |
+
+XP is awarded **once**, the first time each challenge is passed. A lesson is complete when all three of its challenges are passed, and a track's gate only opens when all six of its lessons are complete.
+
+### 3. Integrity of the scoring
+
+Because certificates are the product's promise, the scoring is designed so a learner cannot shortcut it from the browser.
+
+- **Answer keys never leave the server.** Content is converted to a client-safe shape before it reaches the browser; correct answers, explanations and reference solutions are absent from the page payload. (This was checked by fetching every lesson page and searching the HTML for answer keys.)
+- **Answer positions are shuffled server-side, and balanced.** Hand-written content puts the right answer in the same slot far too often (option B for between 70% and 97% of questions, depending on the track), so "always pick B" would nearly pass a gate. Options are now reordered with a seeded, *balanced* permutation per quiz, so each position is used about equally. The shuffle is deterministic, so the page that serves a question and the route that grades it always agree.
+- **The shuffle itself does not leak.** The browser only ever sees *display* positions. The server translates a submitted position back to the original option before grading. (An earlier design that sent original indices to the browser would have revealed the answer; it was removed.)
+- **Track locks are enforced by the API, not just hidden in the UI.** Submitting to a locked track returns `403`.
+- **Certificates rest on gates**, which are graded on the server, rather than on code-challenge XP.
+
+### 4. Certificates
+
+```mermaid
+flowchart LR
+    G["Pass a track gate"] --> R["reconcileCertificates(user)"]
+    R --> T["Track certificate<br/>(one per track, per person)"]
+    R --> C{"All 8 gates passed?"}
+    C -- yes --> K["Course certificate"]
+    T --> V["/verify/AIEM-XXXX-XXXX-XXXX<br/>public verification page"]
+    K --> V
+    V --> P["Download PDF"]
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+- **Public verification.** `/verify/<id>` shows the holder, credential, score and date to anyone with the link, plus a lookup form at `/verify`. A well-formed but unknown ID gets a friendly 404. If the database is unreachable the page says verification is *temporarily unavailable* rather than wrongly claiming the certificate is fake.
+- **IDs are unguessable and readable.** Format `AIEM-7K3Q-ZB2M-X9HD`: 12 random symbols from a 32-character alphabet with the look-alikes `I`, `O`, `0`, `1` removed. Each symbol is `byte % 32` of a random byte, which is exactly uniform because 256 is a multiple of 32.
+- **Issuing is idempotent and self-healing.** One function, `reconcileCertificates`, issues whatever a person has earned and doesn't yet hold. It runs when a gate is passed *and* when the certificates page loads, so a failed issue, or gates passed before certificates existed, are filled in on the next visit. A unique index on `(user, kind, track)` makes concurrent requests safe: the loser of a race simply reads the winner's certificate.
+- **A real PDF**, generated server-side with [`pdf-lib`](https://pdf-lib.js.org/): A4 landscape, grayscale, with the AIEM block, name, credential, score, date, ID and verification URL. Long names wrap to two lines and absurd ones are truncated with an ellipsis, so text can never overflow the frame.
+- **Honest wording.** Certificates state they are for completing the course material and passing its assessments, and that they are *not an accredited qualification*.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+---
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+## Architecture
 
-## Learn More
+### System overview
 
-To learn more about Next.js, take a look at the following resources:
+```mermaid
+flowchart TB
+    subgraph Browser
+        RSC["Server-rendered pages<br/>(HTML + RSC payload)"]
+        CC["Client components<br/>visuals · steppers · calculators · runners"]
+        WW["Web Worker<br/>runs learner code, 2.5 s timeout"]
+    end
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+    subgraph Next["Next.js 16 App Router (Node)"]
+        PG["Pages (server components)<br/>/tracks · /learn · /dashboard · /certificates · /verify"]
+        API["Route handlers<br/>auth · challenges/submit · certificates/pdf"]
+        LIB["lib/<br/>auth · progress · shuffle · certificates · certificate-pdf"]
+        CONTENT["content/<br/>typed lessons, challenges, gates"]
+    end
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+    DB[("MongoDB<br/>users · progress · submissions · certificates")]
 
-## Deploy on Vercel
+    RSC <--> PG
+    CC -- "fetch JSON" --> API
+    CC --- WW
+    PG --> LIB
+    API --> LIB
+    PG --> CONTENT
+    API --> CONTENT
+    LIB <--> DB
+```
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+Key decisions:
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+- **Content is typed TypeScript, not a CMS or MDX.** Every lesson is forced into the same five-section shape, the grader reads from the *same source* the page renders, and a compiler error catches a malformed lesson.
+- **Server components by default.** Pages read the session cookie and progress on the server; only genuinely interactive pieces are client components.
+- **No caching of per-user pages.** The session cookie is read on almost every page, so Next's *Cache Components* mode is switched off (it would force a `<Suspense>` boundary around nearly everything for no benefit).
+- **Own session handling instead of an auth framework.** A signed, `httpOnly`, `sameSite=lax` JWT cookie (via [`jose`](https://github.com/panva/jose)) and `bcryptjs` password hashes. Small enough to read in one sitting.
+
+### Submitting a challenge
+
+```mermaid
+sequenceDiagram
+    autonumber
+    participant B as Browser
+    participant API as POST /api/challenges/submit
+    participant C as content/
+    participant DB as MongoDB
+
+    B->>API: challengeId + answer (display positions)
+    API->>API: verify session cookie
+    API->>C: look up challenge (full answer key)
+    API->>DB: load this user's progress
+    API->>API: reject if the track is locked (403)
+    API->>API: reject a gate until all lessons are done (403)
+    API->>API: translate display positions to original options, then grade
+    API->>DB: save the submission (every attempt is kept)
+    API->>DB: award XP once, update the streak and badges
+    API->>DB: mark the lesson complete if all 3 challenges passed
+    API->>DB: on a passed gate: badge + reconcile certificates
+    API-->>B: score, feedback, XP, lesson/track status, new certificates
+```
+
+### Data model
+
+```mermaid
+erDiagram
+    USER ||--o{ PROGRESS : completes
+    USER ||--o{ SUBMISSION : makes
+    USER ||--o{ CERTIFICATE : earns
+
+    USER {
+        string email UK
+        string name
+        string passwordHash
+        number xp
+        number streakCount
+        string lastActiveDay
+        list badges
+    }
+    PROGRESS {
+        string lessonSlug "unique per user"
+        string trackSlug
+        string status
+        date completedAt
+    }
+    SUBMISSION {
+        string challengeId
+        string kind
+        number score
+        number maxScore
+        bool passed
+        number attempt
+        number xpAwarded
+    }
+    CERTIFICATE {
+        string certId UK
+        string kind "track or course"
+        string trackSlug
+        string holderName
+        number finalScore
+        date issuedAt
+    }
+```
+
+`Certificate` has a unique compound index on `(userId, kind, trackSlug)`, and `Progress` on `(userId, lessonSlug)`, so both are safe under concurrent requests. Progress and unlock state are *derived* from submissions rather than stored separately, so they cannot drift out of sync with the evidence.
+
+### Content model
+
+```mermaid
+classDiagram
+    class Track {
+        slug
+        order
+        level
+        published
+        gate
+        cheatsheet
+    }
+    class Lesson {
+        slug
+        summary
+        codeExample
+        interview
+    }
+    class Block {
+        <<union>>
+        text
+        table
+        code
+        callout
+        visual
+        stepper
+        calculator
+        sorter
+    }
+    class Challenge {
+        <<union>>
+        Quiz
+        SpotTheBug
+        CodeChallenge
+    }
+    Track "1" --> "6" Lesson : lessons
+    Track "1" --> "1" Challenge : gate quiz
+    Lesson "1" --> "*" Block : concept and under the hood
+    Lesson "1" --> "3" Challenge : quiz, bug, code
+```
+
+Type definitions live in [`src/content/types.ts`](src/content/types.ts).
+
+### Project structure
+
+```
+.
+├── scripts/                      Verification and test scripts (npm run verify)
+├── src/
+│   ├── app/
+│   │   ├── (auth)/               login, signup (full-screen layout)
+│   │   ├── (site)/               everything else, with header and footer
+│   │   │   ├── tracks/           track list and track pages (with gates)
+│   │   │   ├── learn/[track]/[lesson]/   the five-section lesson page
+│   │   │   ├── dashboard/        XP, streak, badges, resume, certificates link
+│   │   │   ├── certificates/     "my certificates" (reconciles, then lists)
+│   │   │   ├── verify/           public lookup and /verify/[certId]
+│   │   │   └── cheatsheets/      printable per-track cheatsheets
+│   │   └── api/
+│   │       ├── auth/             signup · login · logout
+│   │       ├── challenges/submit/   server-side grading
+│   │       └── certificates/[certId]/pdf/   PDF download
+│   ├── components/
+│   │   ├── visuals/              15 bespoke interactive visuals + registry
+│   │   ├── interactive/          Stepper · Calculator · Sorter (data-driven)
+│   │   ├── challenges/           Quiz / Bug / Code runners, Web Worker
+│   │   └── …                     BlockRenderer, CertificateCard, Logo, header
+│   ├── content/
+│   │   ├── types.ts              the content schema
+│   │   ├── index.ts              track registry, lookups, client-safe serialisation
+│   │   └── tracks/<track>/       index.ts (gate, cheatsheet) + lessons/01…06
+│   ├── lib/                      auth · db · progress · shuffle · certificates*
+│   └── models/                   Mongoose: User · Progress · Submission · Certificate
+└── .env.example
+```
+
+### Tech stack
+
+| Concern | Choice |
+|---|---|
+| Framework | Next.js 16 (App Router, Turbopack), React 19, TypeScript |
+| Styling | Tailwind CSS 4 with a small design-token layer in `globals.css` |
+| Animation | Framer Motion, plus SVG |
+| Database | MongoDB via Mongoose 9 |
+| Auth | Signed JWT cookie (`jose`), `bcryptjs` |
+| Validation | Zod 4 |
+| PDF | `pdf-lib` |
+| Icons | `lucide-react` |
+
+---
+
+## Getting started
+
+### Prerequisites
+
+- **Node.js 20.9 or newer** (developed on Node 24)
+- **MongoDB**: the quickest way is Docker
+
+```bash
+docker run -d --name aiem-mongo -p 127.0.0.1:27017:27017 -v aiem-mongo-data:/data/db mongo:7
+```
+
+### Run it
+
+```bash
+git clone https://github.com/sairaghukiran14/AIEM.git
+cd AIEM
+npm install
+cp .env.example .env.local
+```
+
+Generate a session secret and put it in `.env.local` as `AUTH_SECRET`:
+
+```bash
+node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
+```
+
+Then:
+
+```bash
+npm run dev      # http://localhost:3000
+```
+
+### Environment variables
+
+| Variable | Required | Purpose |
+|---|---|---|
+| `MONGODB_URI` | yes | Connection string, e.g. `mongodb://127.0.0.1:27017/ai-engineering-mastery` |
+| `AUTH_SECRET` | yes | Signs session cookies. Use a long random value. |
+| `REVIEW_UNLOCK_ALL` | no | Set to `1` to open every track without passing gates, for reviewing content. **Ignored in production builds.** |
+| `DEV_ALLOWED_ORIGINS` | no | Extra hostnames allowed to load the dev server (comma separated). |
+| `SITE_URL` | no | Public origin used in certificate verification URLs. Defaults to the request's origin. |
+
+> **Dev-server gotcha.** Next.js blocks dev-server resources for any host except `localhost`. If you open the app by another hostname or a LAN address, the page renders but never becomes interactive and every button is dead. `127.0.0.1` and `192.168.x.x` are allowed by default; add anything else to `DEV_ALLOWED_ORIGINS`.
+
+### Scripts
+
+| Command | What it does |
+|---|---|
+| `npm run dev` | Start the dev server |
+| `npm run build` / `npm start` | Production build and server |
+| `npm run lint` | ESLint |
+| `npm run typecheck` | TypeScript, no emit |
+| `npm run verify` | Everything below, in one go |
+
+---
+
+## Authoring content
+
+Adding a lesson means writing one typed file. The compiler and the verification scripts then check it.
+
+```ts
+// src/content/tracks/<track>/lessons/07-my-lesson.ts
+import type { Lesson } from "@/content/types";
+
+export const lesson: Lesson = {
+  slug: "my-lesson",              // must be unique across ALL tracks
+  order: 7,
+  title: "My Lesson",
+  summary: "One sentence on why it matters.",
+  minutes: 12,
+
+  concept: [
+    { type: "p", text: "Inline `code`, **bold** and *italic* are supported." },
+    { type: "visual", key: "tokenizer", caption: "Try it." },
+    {
+      type: "calculator",
+      title: "What does it cost?",
+      inputs: [{ key: "n", label: "Requests", min: 1, max: 1000, step: 1, value: 100 }],
+      outputs: [{ label: "Total", formula: "n * 3", format: "int" }],
+    },
+  ],
+  underTheHood: [ /* blocks */ ],
+  codeExample: { language: "python", code: "..." },
+  interview: [ /* 5 × { question, answer, weakAnswer?, followUp? } */ ],
+  challenges: [ /* quiz, spot-the-bug, code */ ],
+};
+```
+
+Then register it in the track's `index.ts`. To add a whole track, create `src/content/tracks/<slug>/` with a gate and cheatsheet, and add it to the list in `src/content/index.ts`.
+
+Conventions that keep the course consistent:
+
+- **Challenge ids** are `<prefix>-<n>-quiz | bug | code` and `<prefix>-gate`.
+- **Quiz answer positions don't matter.** Write the correct option anywhere; the server balances positions at serve time.
+- **Code challenges** need a reference `solution` and tests. Tests compare results with `JSON.stringify`, so **object key order in expected values matters**; document the order in the starter.
+- **Calculator formulas** are JavaScript expressions over the input keys. They are authored in this repository and evaluated in the browser, so they must never come from user input.
+- **Be honest in copy.** Visuals that use made-up numbers say so on the page.
+
+---
+
+## Testing and verification
+
+`npm run verify` runs a suite designed around one idea: **the content is data, so check it like data.**
+
+| Script | What it proves |
+|---|---|
+| `check-structure` | Challenge ids and lesson slugs are unique; every answer index and buggy-line number is in range |
+| `check-blocks` | Every calculator formula evaluates to a number with its defaults; every step-through highlight points at a real item; every sorter answer is a valid category; every visual key exists; every lesson has at least one interactive element, five interview questions and three challenges |
+| `test-solutions` | **Every code challenge's reference solution passes its own tests**, and its starter code does *not* (so no challenge is trivially solved). This caught several wrong expected values while the course was written |
+| `test-certificates` | Certificate issuing against an in-memory store with the same unique-index behaviour as MongoDB: idempotency, course certificate, a simulated race, an ID collision, ID uniformity |
+| `test-certificate-pdf` | PDFs build and re-open from awkward input: non-Latin names, emoji, very long names, 200 characters with no spaces, an empty name |
+| `report-answer-balance` | Reports where correct answers land after the server shuffle (informational) |
+
+Beyond these, every page was fetched and checked for a `200`, no lock screen, an interview section, and **no answer keys in the HTML**, and each interactive component was exercised with real clicks and drags in a browser.
+
+---
+
+## Status and known limitations
+
+Being upfront about what this is and isn't:
+
+**Built:** all 8 tracks, auth, server-side grading, progress, XP, streaks, badges, track gates, per-track cheatsheets, certificates with public verification and PDF.
+
+**Not built yet**
+
+- A final capstone challenge, a projects section and a skill-assessment quiz were part of the original plan.
+- Email verification, password reset, and login rate limiting or lockout.
+- Automated **integration tests** against a real database, and a CI pipeline. Signup, scoring, progress and the gate flow were exercised against a real MongoDB for the first track during development. Track locking and certificate issuing were **not** run against a live database: the issuing logic is unit-tested against an in-memory store that mimics MongoDB's unique indexes, but nothing runs the full signup-to-certificate flow end to end.
+
+**Known limitations**
+
+- **Code challenges are graded in the browser.** The server cannot safely run arbitrary learner code, so it records the pass count the client reports (after checking it is well-formed). XP from code challenges is therefore self-reported. Quizzes, bug hunts and gates are graded on the server and cannot be faked, which is why certificates depend on gates.
+- **Labs are simulated.** Visuals use hand-made or toy data (and say so); there are no live model calls.
+- **The built-in PDF font covers Latin-1 only.** Names in other scripts appear as `?` in the PDF (the web page shows them correctly). Embedding a Unicode font would fix it.
+- **Public by design:** a certificate's link exposes the holder's name, credential, score and date to anyone who has it.
+
+No license has been specified for this repository yet.
