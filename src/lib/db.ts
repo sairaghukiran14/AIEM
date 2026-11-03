@@ -1,13 +1,5 @@
 import mongoose from "mongoose";
 
-const MONGODB_URI = process.env.MONGODB_URI;
-
-if (!MONGODB_URI) {
-  throw new Error(
-    "MONGODB_URI is not set. Copy .env.example to .env.local and fill it in."
-  );
-}
-
 type MongooseCache = {
   conn: typeof mongoose | null;
   promise: Promise<typeof mongoose> | null;
@@ -28,8 +20,15 @@ globalForMongoose._mongoose = cached;
 export async function connectDB() {
   if (cached.conn) return cached.conn;
 
+  // Read at connect time, not import time, so a build without the variable
+  // (for example on a CI host) can still collect page data.
+  const uri = process.env.MONGODB_URI;
+  if (!uri) {
+    throw new Error("MONGODB_URI is not set. Copy .env.example to .env.local and fill it in.");
+  }
+
   if (!cached.promise) {
-    cached.promise = mongoose.connect(MONGODB_URI!, {
+    cached.promise = mongoose.connect(uri, {
       bufferCommands: false,
       serverSelectionTimeoutMS: 8000,
     });
