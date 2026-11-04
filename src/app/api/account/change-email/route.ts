@@ -4,7 +4,7 @@ import { z } from "zod";
 import { getActiveSessionUserId, verifyPassword } from "@/lib/auth";
 import { connectDB } from "@/lib/db";
 import { emailChangeConfirm, emailChangeNotice } from "@/lib/mailer-core";
-import { sendMail } from "@/lib/mailer";
+import { mailFailure, sendMail } from "@/lib/mailer";
 import { ipOf, limited, POLICIES } from "@/lib/rate-limit";
 import { readJsonBody } from "@/lib/read-json";
 import { hashResetToken, newResetToken } from "@/lib/reset-token";
@@ -68,7 +68,7 @@ export async function POST(request: Request) {
       await sendMail({ to: user.email, subject: notice.subject, text: notice.text });
     } catch (err) {
       console.error("[change-email] could not send the emails:", err);
-      return NextResponse.json({ error: "We could not send the email just now. Please try again later." }, { status: 502 });
+      return NextResponse.json({ error: "We could not send the email just now. Please try again later.", ...mailFailure(err) }, { status: 502 });
     }
     return NextResponse.json({ ok: true });
   } catch (err) {

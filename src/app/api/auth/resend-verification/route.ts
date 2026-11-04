@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 import { getActiveSessionUserId } from "@/lib/auth";
 import { connectDB } from "@/lib/db";
 import { sendVerificationEmail } from "@/lib/email-verification";
+import { mailFailure } from "@/lib/mailer";
 import { ipOf, limited, POLICIES } from "@/lib/rate-limit";
 import { User, type UserDoc } from "@/models/User";
 
@@ -27,7 +28,7 @@ export async function POST(request: Request) {
     } catch (err) {
       console.error("[resend-verification] could not send the email:", err);
       return NextResponse.json(
-        { error: "We could not send the email just now. Please try again later." },
+        { error: "We could not send the email just now. Please try again later.", ...mailFailure(err) },
         { status: 502 }
       );
     }
