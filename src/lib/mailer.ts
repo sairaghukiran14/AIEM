@@ -21,8 +21,10 @@ export class MailRejected extends Error {
  * and production throws, so a missing provider is loud in the logs instead of silent.
  */
 export async function sendMail(mail: Mail): Promise<void> {
-  const apiKey = process.env.RESEND_API_KEY;
-  const from = process.env.MAIL_FROM;
+  // Values pasted into a dashboard often carry a trailing newline, spaces or surrounding quotes. Strip them.
+  const clean = (v: string | undefined) => v?.trim().replace(/^["']+|["']+$/g, "").trim();
+  const apiKey = clean(process.env.RESEND_API_KEY);
+  const from = clean(process.env.MAIL_FROM);
 
   if (apiKey && from) {
     const { url, init } = buildResendRequest(mail, apiKey, from);
