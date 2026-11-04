@@ -5,7 +5,7 @@ import { Download, ShieldAlert, ShieldCheck } from "lucide-react";
 import { CertificateCard } from "@/components/CertificateCard";
 import { PrintButton } from "@/components/PrintButton";
 import { formatIssueDate, isValidCertId } from "@/lib/certificate-core";
-import { certificateSubtitle } from "@/lib/certificate-labels";
+import { certificateBadge, certificateSubtitle } from "@/lib/certificate-labels";
 import { getCertificate, type CertificateView } from "@/lib/certificates";
 
 type Props = { params: Promise<{ certId: string }> };
@@ -47,12 +47,12 @@ export default async function VerifyPage({ params }: Props) {
           <p className="mt-1 text-sm text-text-muted">
             AIEM issued this certificate to <strong className="text-text">{cert.holderName}</strong> on{" "}
             {formatIssueDate(cert.issuedAt)} for <strong className="text-text">{cert.title}</strong>, with a
-            gate score of {cert.score}%.
+            {cert.kind === "course" ? " capstone" : " gate"} score of {cert.score}%.
           </p>
         </div>
       </section>
 
-      <CertificateCard cert={cert} subtitle={subtitle} />
+      <CertificateCard cert={cert} subtitle={subtitle} badge={certificateBadge(cert)} />
 
       <div className="mx-auto flex max-w-3xl flex-wrap items-center gap-3 print:hidden">
         <a href={`/api/certificates/${cert.certId}/pdf`} download className="btn btn-primary">

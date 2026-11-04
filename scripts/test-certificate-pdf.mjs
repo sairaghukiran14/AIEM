@@ -24,6 +24,10 @@ function load(rel) {
 const { buildCertificatePdf } = load("src/lib/certificate-pdf.ts");
 
 const cases = {
+  track10: { holderName: "Ada Lovelace", title: "Serving, Self-Hosting & Multimodal AI", subtitle: "Track 10 of 10 · gate score 80%", badge: { kind: "track", number: 10, level: "advanced" } },
+  track1: { holderName: "Ada Lovelace", title: "LLM Foundations", subtitle: "Track 1 of 10 · gate score 100%", badge: { kind: "track", number: 1, level: "beginner" } },
+  courseBadge: { holderName: "Ada Lovelace", title: "AI Engineering Mastery: Complete Course", subtitle: "All 10 tracks and the capstone passed · capstone score 88%", badge: { kind: "course" } },
+  longUrl: { holderName: "Ada Lovelace", title: "RAG Systems", subtitle: "Track 4 of 10 · gate score 90%", badge: { kind: "track", number: 4, level: "intermediate" }, verifyUrl: "https://example.com/verify/" + "x".repeat(3500) },
   normal: { holderName: "Ada Lovelace", title: "LLM Foundations", subtitle: "Track 1 of 8 · gate score 90%" },
   course: { holderName: "Ada Lovelace", title: "AI Engineering Mastery: Complete Course", subtitle: "All 8 tracks passed · average gate score 87%" },
   nonLatin: { holderName: "Sai Raghu Kiran 賽拉", title: "Prompt Engineering & Structured Output", subtitle: "Track 2 of 8 · gate score 100%" },
@@ -36,13 +40,14 @@ const outDir = join(tmpdir(), "aiem-certificate-pdfs");
 mkdirSync(outDir, { recursive: true });
 let ok = 0;
 for (const [name, c] of Object.entries(cases)) {
-  const bytes = await buildCertificatePdf({ ...c, certId: "AIEM-7K3Q-ZB2M-X9HD", issuedAt: "2026-11-04T10:00:00.000Z", verifyUrl: "http://localhost:3000/verify/AIEM-7K3Q-ZB2M-X9HD" });
+  const bytes = await buildCertificatePdf({ certId: "AIEM-7K3Q-ZB2M-X9HD", issuedAt: "2026-11-04T10:00:00.000Z", verifyUrl: "http://localhost:3000/verify/AIEM-7K3Q-ZB2M-X9HD", ...c });
   const header = Buffer.from(bytes.slice(0, 5)).toString();
   const reopened = await PDFDocument.load(bytes);
   const pages = reopened.getPageCount();
   const { width, height } = reopened.getPage(0).getSize();
   console.log(name.padEnd(9), "header", header, "| pages", pages, "| size", Math.round(width) + "x" + Math.round(height), "| bytes", bytes.length, "| title:", reopened.getTitle());
   if (header !== "%PDF-" || pages !== 1) throw new Error("bad pdf for " + name);
+  if (bytes.length > 400_000) throw new Error(name + " is unexpectedly large: " + bytes.length + " bytes");
   writeFileSync(join(outDir, name + ".pdf"), bytes);
   ok++;
 }

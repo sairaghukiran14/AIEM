@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 
 import { isValidCertId } from "@/lib/certificate-core";
-import { certificateSubtitle } from "@/lib/certificate-labels";
+import { certificateBadge, certificateSubtitle } from "@/lib/certificate-labels";
 import { buildCertificatePdf } from "@/lib/certificate-pdf";
 import { getCertificate } from "@/lib/certificates";
 
@@ -36,6 +36,7 @@ export async function GET(request: Request, { params }: Params) {
     subtitle: certificateSubtitle(cert),
     issuedAt: cert.issuedAt,
     verifyUrl: `${origin}/verify/${cert.certId}`,
+    badge: certificateBadge(cert),
   });
 
   return new Response(new Blob([pdf as BlobPart], { type: "application/pdf" }), {

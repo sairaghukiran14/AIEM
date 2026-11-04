@@ -134,7 +134,7 @@ flowchart LR
 - **IDs are unguessable and readable.** Format `AIEM-7K3Q-ZB2M-X9HD`: 12 random symbols from a 32-character alphabet with the look-alikes `I`, `O`, `0`, `1` removed. Each symbol is `byte % 32` of a random byte, which is exactly uniform because 256 is a multiple of 32.
 - **The course certificate needs all ten gates and the capstone**, and its score is the capstone score. A capstone pass without the gates issues nothing.
 - **Issuing is idempotent and self-healing.** One function, `reconcileCertificates`, issues whatever a person has earned and doesn't yet hold. It runs when a gate or the capstone is passed *and* when the certificates page loads, so a failed issue, or gates passed before certificates existed, are filled in on the next visit. A unique index on `(user, kind, track)` makes concurrent requests safe: the loser of a race simply reads the winner's certificate.
-- **A real PDF**, generated server-side with [`pdf-lib`](https://pdf-lib.js.org/): A4 landscape, grayscale, with the AIEM block, name, credential, score, date, ID and verification URL. Long names wrap to two lines and absurd ones are truncated with an ellipsis, so text can never overflow the frame.
+- **A real PDF**, generated server-side with [`pdf-lib`](https://pdf-lib.js.org/): A4 landscape and grayscale, with no colour or gradients. It has a layered frame with a dotted band and corner ornaments, a faint rosette watermark (a different one for each track), serif lettering, a scalloped seal with ribbon tails showing the track number and level (a star for the course certificate, which also gets an extra frame), the date, the certificate id, and a **QR code** that opens the verification page (the printed link is the fallback if a link is too long to encode). Long names wrap to two lines and absurd ones are truncated with an ellipsis, so text can never overflow the frame. The on-screen certificate on the verify page uses the same design in CSS and SVG.
 - **Honest wording.** Certificates state they are for completing the course material and passing its assessments, and that they are *not an accredited qualification*.
 
 ---
@@ -359,7 +359,7 @@ Type definitions live in [`src/content/types.ts`](src/content/types.ts).
 | Database | MongoDB via Mongoose 9 |
 | Auth | Signed JWT cookie (`jose`), `bcryptjs` |
 | Validation | Zod 4 |
-| PDF | `pdf-lib` |
+| PDF and QR code | `pdf-lib`, `qrcode` |
 | Icons | `lucide-react` |
 
 ---
@@ -482,7 +482,7 @@ Conventions that keep the course consistent:
 | `test-interview-terms` | The key-term logic behind the mock interview: word stemming, which terms count as distinctive, and overlap percentages |
 | `test-rate-limit-and-mail` | The rate limiter's window and decision logic, how the client address is read, and the email request that would be sent |
 | `test-certificates` | Certificate issuing against an in-memory store with the same unique-index behaviour as MongoDB: idempotency, the course certificate requiring the capstone (and carrying its score), a simulated race, an ID collision, ID uniformity |
-| `test-certificate-pdf` | PDFs build and re-open from awkward input: non-Latin names, emoji, very long names, 200 characters with no spaces, an empty name |
+| `test-certificate-pdf` | PDFs build and re-open from awkward input: non-Latin names, emoji, very long names, 200 characters with no spaces, an empty name, every seal variant, and a link too long for a QR code; each PDF stays under a size limit |
 | `report-answer-balance` | Reports where correct answers land after the server shuffle (informational) |
 
 **End-to-end (`npm run e2e`)** needs a built server and a database, so it is not part of `verify`, but CI runs it on every push against a MongoDB container. It creates throwaway users and checks: signup and login, the rate limit (the 9th wrong password for one address gets a 429), the full password-reset flow (only a token hash is stored, a link works once, an expired or unknown link is refused, and a session from before the reset is signed out), email verification (a link works once, only a hash is stored, opening the page does not spend it, and a certificate is held until the address is confirmed and then released), track and capstone locks, every gate with wrong and right answers, the course certificate, its public page and its PDF. It deletes everything it created.
