@@ -1,19 +1,21 @@
 import type { Quiz, QuizQuestion } from "@/content/types";
 
 /**
- * The capstone: one case study, thirty decisions. Each section draws on several
+ * The capstone: one case study, thirty-six decisions. Each section draws on several
  * tracks, and each question asks what a good engineer would do, not what a term means.
  */
 
 const CASE =
   "Northwind, a project-management SaaS, is shipping a support copilot. It answers from the help center and the customer's own workspace, can look up orders and subscriptions, and can propose refunds. It will reach about 200,000 conversations a day, in several languages.";
 
-const S1 = `${CASE}\n\nSection 1 of 6: the prompt and the model interface.`;
-const S2 = `Section 2 of 6: grounding answers in the help center and customer data.`;
-const S3 = `Section 3 of 6: letting the copilot take actions with tools.`;
-const S4 = `Section 4 of 6: proving it works, and keeping it that way.`;
-const S5 = `Section 5 of 6: adapting the model only where it pays.`;
-const S6 = `Section 6 of 6: running it in production.`;
+const S1 = `${CASE}\n\nSection 1 of 7: the prompt and the model interface.`;
+const S2 = `Section 2 of 7: grounding answers in the help center and customer data.`;
+const S3 = `Section 3 of 7: letting the copilot take actions with tools.`;
+const S4 = `Section 4 of 7: proving it works, and keeping it that way.`;
+const S5 = `Section 5 of 7: adapting the model only where it pays.`;
+const S6 = `Section 6 of 7: running it in production.`;
+
+const S7 = `Section 7 of 7: the knowledge base, self-hosting and multimodal inputs.`;
 
 const questions: QuizQuestion[] = [
   /* ------------------------------------------------ 1. prompt and interface */
@@ -477,6 +479,98 @@ const questions: QuizQuestion[] = [
     explanation:
       "Mitigate first, diagnose second, then make the failure permanently testable (Track 8).",
   },
+
+  /* ------------------------------ 7. knowledge base, self-hosting, multimodal */
+  {
+    id: "c31",
+    scenario: S7,
+    prompt:
+      "Northwind already stores workspaces, users and permissions in Postgres. The help center plus customer workspace content comes to about 3 million chunks. Where should the vectors live?",
+    options: [
+      "A separate dedicated vector database, with a nightly job that copies permissions into it",
+      "pgvector in the existing Postgres, filtering by the workspace taken from the authenticated session inside the same query",
+      "FAISS indexes in each application server's memory",
+      "Nowhere: put the whole help center in every prompt",
+    ],
+    correctIndex: 1,
+    explanation:
+      "At this scale, one system with transactions, joins and permissions beats a second store that must stay in sync. The tenant comes from authentication, never from the request body (Track 9).",
+  },
+  {
+    id: "c32",
+    scenario: S7,
+    prompt:
+      "A small customer owns about 1% of the chunks. Their top-10 searches often return only two or three rows, though they have thousands of relevant chunks. What is happening, and what do you try?",
+    options: [
+      "Their embeddings are corrupted, so re-embed their documents",
+      "pgvector ignores LIMIT when a WHERE clause is present",
+      "The approximate index returns its nearest candidates first and the selective filter then removes most of them, so raise the search breadth, use iterative scans, or add a partial index or partition for large tenants, and test recall with the filter on",
+      "Cosine distance cannot be combined with a tenant filter",
+    ],
+    correctIndex: 2,
+    explanation:
+      "Post-filtering an approximate candidate list leaves too few rows when the filter is selective. Check recall with filters enabled (Track 9, lesson 1).",
+  },
+  {
+    id: "c33",
+    scenario: S7,
+    prompt:
+      "The copilot rewrites the query and retries retrieval when results look weak. A few conversations now trigger 15 or more rounds and cost spikes. What is the right fix?",
+    options: [
+      "Raise the relevance threshold so retries happen more often",
+      "Let it keep trying, since more rounds find better evidence",
+      "Remove retries entirely",
+      "Cap the rounds, detect repeated rewrites, and end in a defined fallback such as another source or an honest 'I could not find that', logging how often the cap is hit",
+    ],
+    correctIndex: 3,
+    explanation:
+      "Loops need a hard bound and a defined exit, or a question with no answer searches forever (Track 9, lesson 4).",
+  },
+  {
+    id: "c34",
+    scenario: S7,
+    prompt:
+      "The copilot told a customer their refund would be $120, but the policy says $12. The policy passage was retrieved and in the prompt. Which safeguard catches this class of error most cheaply?",
+    options: [
+      "A higher temperature to diversify answers",
+      "A deterministic check that every number in the answer appears in the retrieved context, with a claim-level verifier and an abstain or human-review path for failures",
+      "A longer system prompt asking the model to be careful",
+      "Shorter chunks",
+    ],
+    correctIndex: 1,
+    explanation:
+      "Figures are the cheapest thing to verify mechanically. Pair it with a faithfulness check and a defined action on failure (Track 9, lesson 6).",
+  },
+  {
+    id: "c35",
+    scenario: S7,
+    prompt:
+      "Legal asks whether to self-host a model because support chats contain personal data. Traffic is spiky, and a GPU would sit about 80% idle on average. What is the best response?",
+    options: [
+      "Treat the data requirement as the real driver: evaluate the smallest model that passes your eval, compare data-handling options including contractual protections from a provider, and cost self-hosting at its realistic 20% utilisation, where cost per token is about five times the busy-GPU figure",
+      "Self-host immediately, since it is always cheaper",
+      "Stay on the hosted API and ignore the legal question",
+      "Self-host a much larger model for quality, ignoring cost",
+    ],
+    correctIndex: 0,
+    explanation:
+      "A data-control requirement can justify self-hosting, but idle hardware is paid for, so cost must use real utilisation. Test quality on your own eval first (Track 10).",
+  },
+  {
+    id: "c36",
+    scenario: S7,
+    prompt:
+      "Customers now attach screenshots of errors, and a vision model reads them. Image costs climb and users in long chats see slower replies. Which changes help most?",
+    options: [
+      "Use a larger vision model",
+      "Send every screenshot at full resolution to be safe",
+      "Downscale and crop to what the task needs, try text extraction first, attach each image once instead of on every turn, cache by image hash, and cross-check what the model read",
+      "Ask users to type everything instead",
+    ],
+    correctIndex: 2,
+    explanation:
+      "Image tokens scale with resolution and are billed every time they are sent. Reduce them and validate the output (Track 10, lesson 3).",
+  },
 ];
 
 export const capstone: Quiz = {
@@ -484,7 +578,7 @@ export const capstone: Quiz = {
   kind: "capstone",
   title: "Capstone: Ship the Northwind Support Copilot",
   blurb:
-    "Thirty decisions on one case study, spanning every track. Score 75% to complete the capstone. With every track gate passed, this earns your course certificate.",
+    "Thirty-six decisions on one case study, spanning every track. Score 75% to complete the capstone. With every track gate passed, this earns your course certificate.",
   passPercent: 75,
   xp: 400,
   questions,

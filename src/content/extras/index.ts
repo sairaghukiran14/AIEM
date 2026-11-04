@@ -8,6 +8,7 @@ import { evalExtras } from "./evals-and-observability";
 import { fineTuningExtras } from "./fine-tuning";
 import { productionExtras } from "./production-ai";
 import { advancedRagExtras } from "./advanced-rag";
+import { servingExtras } from "./serving-and-multimodal";
 
 export const extras: LessonExtras = {
   ...foundationsExtras,
@@ -19,4 +20,5 @@ export const extras: LessonExtras = {
   ...fineTuningExtras,
   ...productionExtras,
   ...advancedRagExtras,
+  ...servingExtras,
 };

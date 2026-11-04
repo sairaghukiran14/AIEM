@@ -17,6 +17,7 @@ const SECTIONS = [
   "Proving it works, and keeping it that way",
   "Adapting the model only where it pays",
   "Running it in production",
+  "Knowledge bases, self-hosting and multimodal inputs",
 ];
 
 export default async function CapstonePage() {
@@ -33,7 +34,7 @@ export default async function CapstonePage() {
         <p className="text-xs font-semibold uppercase tracking-[0.16em] text-text-dim">Final assessment</p>
         <h1 className="mt-2 text-3xl font-semibold tracking-tight sm:text-4xl">{capstone.title}</h1>
         <p className="mt-3 text-lg text-text-muted">
-          One case study and thirty decisions that cut across every track. It is how the course checks that you
+          One case study and {capstone.questions.length} decisions that cut across every track. It is how the course checks that you
           can combine what you learned, not just recall it.
         </p>
         <dl className="mt-5 flex flex-wrap gap-x-8 gap-y-2 text-sm">

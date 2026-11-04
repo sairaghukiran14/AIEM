@@ -1,0 +1,52 @@
+import { tracks } from "@/content";
+
+export type MockQuestion = {
+  id: string;
+  trackTitle: string;
+  trackSlug: string;
+  lessonTitle: string;
+  lessonSlug: string;
+  question: string;
+  answer: string;
+  weakAnswer?: string;
+  followUp?: string;
+};
+
+function all(): MockQuestion[] {
+  return tracks
+    .filter((t) => t.published)
+    .flatMap((t) =>
+      t.lessons.flatMap((l) =>
+        l.interview.map((q, i) => ({
+          id: `${l.slug}:${i}`,
+          trackTitle: t.title,
+          trackSlug: t.slug,
+          lessonTitle: l.title,
+          lessonSlug: l.slug,
+          question: q.question,
+          answer: q.answer,
+          weakAnswer: q.weakAnswer,
+          followUp: q.followUp,
+        }))
+      )
+    );
+}
+
+function sample<T>(items: T[], n: number): T[] {
+  const copy = [...items];
+  for (let i = copy.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [copy[i], copy[j]] = [copy[j], copy[i]];
+  }
+  return copy.slice(0, n);
+}
+
+/** A random set of interview questions from one track, or from every track when 'mixed'. */
+export function pickQuestions(track: string, n: number): MockQuestion[] {
+  const pool = track === "mixed" ? all() : all().filter((q) => q.trackSlug === track);
+  return sample(pool, Math.max(1, Math.min(n, pool.length)));
+}
+
+export function questionCount(track: string): number {
+  return track === "mixed" ? all().length : all().filter((q) => q.trackSlug === track).length;
+}

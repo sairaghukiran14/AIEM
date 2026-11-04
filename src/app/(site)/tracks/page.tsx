@@ -16,8 +16,19 @@ export default async function TracksPage() {
     <div>
       <h1 className="text-3xl font-semibold tracking-tight">Tracks</h1>
       <p className="mt-2 max-w-2xl text-text-muted">
-        Eight tracks from fundamentals to production. Pass a track&apos;s gate challenge to unlock
+        {tracks.length} tracks from fundamentals to production. Pass a track&apos;s gate challenge to unlock
         the next one.
+      </p>
+      <p className="mt-3 text-sm text-text-muted">
+        Not sure where to begin?{" "}
+        <Link href="/assess" className="font-semibold text-text underline">
+          Take the 10-minute placement check
+        </Link>
+        , or{" "}
+        <Link href="/interview" className="font-semibold text-text underline">
+          practise a mock interview
+        </Link>
+        .
       </p>
 
       <div className="mt-8 grid gap-4 md:grid-cols-2">

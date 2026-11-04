@@ -14,7 +14,7 @@ const gate: Quiz = {
   kind: "gate",
   title: "Track Gate: Advanced RAG & Building It",
   blurb:
-    "Ten questions drawn from the whole track, at interview difficulty. Score 70% to complete Advanced RAG and unlock the capstone.",
+    "Ten questions drawn from the whole track, at interview difficulty. Score 70% to complete Advanced RAG and unlock Serving, Self-Hosting & Multimodal AI.",
   passPercent: 70,
   xp: 200,
   questions: [

@@ -21,14 +21,15 @@
 
 ## What it is
 
-AIEM is a full-stack learning platform. A learner signs up, works through nine tracks of lessons, proves each one with scored challenges, passes a gate quiz to unlock the next track, finishes with a **capstone exam**, and earns **public, verifiable certificates** with downloadable PDFs.
+AIEM is a full-stack learning platform. A learner signs up, works through ten tracks of lessons, proves each one with scored challenges, passes a gate quiz to unlock the next track, finishes with a **capstone exam**, and earns **public, verifiable certificates** with downloadable PDFs.
 
 | | |
 |---|---|
-| **9** tracks, beginner to advanced | **56** lessons |
-| **178** scored challenges (168 in lessons, 9 gates and the capstone) | **15** bespoke interactive visuals |
-| **38** step-throughs, **39** calculators, **40** sorting exercises | **11,160** XP available |
-| **56** predict-first questions, **48** worked examples, **10** compare-two exercises | Every lesson has at least two of these |
+| **10** tracks, beginner to advanced | **60** lessons |
+| **191** scored challenges (180 in lessons, 10 gates and the capstone) | **15** bespoke interactive visuals |
+| **42** step-throughs, **44** calculators, **44** sorting exercises | **12,000** XP available |
+| **60** predict-first questions, **52** worked examples, **12** compare-two exercises | Every lesson has at least two of these |
+| A **placement check** and a **mock interview** mode | See [practice tools](#6-practice-tools) |
 
 Every lesson has the same five parts, built so that you can *explain* a topic under interview pressure, not just recognise it:
 
@@ -57,10 +58,11 @@ Tracks unlock in order. Passing a track's gate (a 10-question quiz, 70% to pass)
 | 7 | **Fine-tuning & Model Adaptation** | Advanced | When to Fine-tune · Data for Fine-tuning · LoRA & QLoRA · Preference Optimization: RLHF & DPO · Distillation & Small Models · Evaluating & Deploying Fine-tunes |
 | 8 | **Production AI** | Advanced | Streaming & Latency · Caching & Cost Control · Reliability: Rate Limits & Retries · Guardrails & Safety · Scaling & Architecture · Operating AI Products |
 | 9 | **Advanced RAG & Building It** | Advanced | Vector Databases & pgvector · Advanced Retrieval: Contextual, Parent-Child, Hierarchical & Multi-Hop · RAG Architectures: Naive, Advanced, Modular & Adaptive · Corrective, Self-RAG & Agentic RAG · Graph RAG & Knowledge-Graph Retrieval · Hallucination Detection & Verification · Build It: FastAPI, pgvector, Hybrid Search & Streaming · Frameworks, Document Parsing & Structured Data |
+| 10 | **Serving, Self-Hosting & Multimodal AI** | Advanced | How LLM Serving Works: KV Cache, Batching & Throughput · Quantization & Self-Hosting · Multimodal Models: Vision and Audio · Multimodal RAG: Images, PDFs & Audio |
 
 Each track also ships a printable **cheatsheet** at `/cheatsheets/<track>`.
 
-After the ninth gate the **capstone** opens: thirty scenario questions on one case study that cut across every track. See [the capstone and portfolio projects](#the-capstone-and-portfolio-projects).
+After the tenth gate the **capstone** opens: thirty-six scenario questions on one case study that cut across every track. See [the capstone and portfolio projects](#the-capstone-and-portfolio-projects).
 
 ---
 
@@ -101,13 +103,13 @@ Because certificates are the product's promise, the scoring is designed so a lea
 
 ### 4. The capstone and portfolio projects
 
-The capstone is one case study, **Northwind's support copilot**, and thirty decisions about it in six sections: the prompt and interface, grounding in documents, tools and actions, evaluation, adaptation, and production. Each question asks what a good engineer would *do* ("a refund call timed out and the customer was refunded twice; what should have been in place?"), not what a term means, and each section draws on several tracks.
+The capstone is one case study, **Northwind's support copilot**, and thirty-six decisions about it in seven sections: the prompt and interface, grounding in documents, tools and actions, evaluation, adaptation, production, and knowledge bases, self-hosting and multimodal inputs. Each question asks what a good engineer would *do* ("a refund call timed out and the customer was refunded twice; what should have been in place?"), not what a term means, and each section draws on several tracks.
 
 | | |
 |---|---|
 | Pass mark | **75%** (the track gates use 70%) |
 | XP | 400, awarded once |
-| Opens | after all nine track gates are passed |
+| Opens | after all ten track gates are passed |
 | Grading | on the server, with the same shuffled, non-leaking answer positions as the gates |
 
 Alongside it are five **portfolio project briefs** (a streaming chat app, a cited document Q&A bot, a guardrailed research agent, an evaluation harness, and a capstone support copilot). Each has tickable requirements, stretch goals, what to put in the README, and the questions an interviewer is likely to ask. **They are not graded**: the server cannot safely run what a learner builds, so nothing there counts toward the certificate, and the ticks are saved only in the learner's browser.
@@ -119,7 +121,7 @@ flowchart LR
     G["Pass a track gate"] --> R["reconcileCertificates(user)"]
     CAP["Pass the capstone"] --> R
     R --> T["Track certificate<br/>(one per track, per person)"]
-    R --> C{"All 9 gates and the capstone passed?"}
+    R --> C{"All 10 gates and the capstone passed?"}
     C -- yes --> K["Course certificate"]
     T --> V["/verify/AIEM-XXXX-XXXX-XXXX<br/>public verification page"]
     K --> V
@@ -128,12 +130,18 @@ flowchart LR
 
 - **Public verification.** `/verify/<id>` shows the holder, credential, score and date to anyone with the link, plus a lookup form at `/verify`. A well-formed but unknown ID gets a friendly 404. If the database is unreachable the page says verification is *temporarily unavailable* rather than wrongly claiming the certificate is fake.
 - **IDs are unguessable and readable.** Format `AIEM-7K3Q-ZB2M-X9HD`: 12 random symbols from a 32-character alphabet with the look-alikes `I`, `O`, `0`, `1` removed. Each symbol is `byte % 32` of a random byte, which is exactly uniform because 256 is a multiple of 32.
-- **The course certificate needs all nine gates and the capstone**, and its score is the capstone score. A capstone pass without the gates issues nothing.
+- **The course certificate needs all ten gates and the capstone**, and its score is the capstone score. A capstone pass without the gates issues nothing.
 - **Issuing is idempotent and self-healing.** One function, `reconcileCertificates`, issues whatever a person has earned and doesn't yet hold. It runs when a gate or the capstone is passed *and* when the certificates page loads, so a failed issue, or gates passed before certificates existed, are filled in on the next visit. A unique index on `(user, kind, track)` makes concurrent requests safe: the loser of a race simply reads the winner's certificate.
 - **A real PDF**, generated server-side with [`pdf-lib`](https://pdf-lib.js.org/): A4 landscape, grayscale, with the AIEM block, name, credential, score, date, ID and verification URL. Long names wrap to two lines and absurd ones are truncated with an ellipsis, so text can never overflow the frame.
 - **Honest wording.** Certificates state they are for completing the course material and passing its assessments, and that they are *not an accredited qualification*.
 
 ---
+
+
+### 6. Practice tools
+
+- **Placement check** (`/assess`): twenty questions, two per track, from fundamentals upward. It suggests the first track you were not solid in and shows a score per track. It is advisory: nothing is scored or saved, and it unlocks nothing, because track locks still depend on passing each gate.
+- **Mock interview** (`/interview`): reading an answer is not the same as giving one. You are asked a real interview question from the lessons, write the answer you would say out loud, then compare it with a strong answer and a common shallow one. A key-term check shows which distinctive words of the strong answer you used, as **word overlap and not a grade**, and you rate yourself. At the end you get the lessons to revisit. There is no model call involved, so it cannot be fooled or run up a bill, but it also cannot judge meaning, which is why the rating is yours.
 
 ## Architecture
 
@@ -299,6 +307,8 @@ Type definitions live in [`src/content/types.ts`](src/content/types.ts).
 │   │   │   ├── tracks/           track list and track pages (with gates)
 │   │   │   ├── learn/[track]/[lesson]/   the five-section lesson page
 │   │   │   ├── capstone/         the final exam and the portfolio project briefs
+│   │   │   ├── assess/           the placement check
+│   │   │   ├── interview/        the mock interview mode
 │   │   ├── dashboard/        XP, streak, badges, resume, capstone and certificates links
 │   │   │   ├── certificates/     "my certificates" (reconciles, then lists)
 │   │   │   ├── verify/           public lookup and /verify/[certId]
@@ -315,7 +325,8 @@ Type definitions live in [`src/content/types.ts`](src/content/types.ts).
 │   ├── content/
 │   │   ├── types.ts              the content schema
 │   │   ├── extras/               predict, worked-example and compare blocks, per lesson slug
-│   │   ├── capstone.ts           the 30-question capstone exam
+│   │   ├── capstone.ts           the 36-question capstone exam
+│   │   ├── assessment.ts         the 20 placement questions
 │   │   ├── projects.ts           portfolio project briefs
 │   │   ├── index.ts              track registry, lookups, client-safe serialisation
 │   │   └── tracks/<track>/       index.ts (gate, cheatsheet) + lessons/01…06
@@ -447,9 +458,10 @@ Conventions that keep the course consistent:
 
 | Script | What it proves |
 |---|---|
-| `check-structure` | Challenge ids and lesson slugs are unique; every answer index and buggy-line number is in range; the capstone is well-formed (four options, explanation and scenario on every question); every project brief points at a real track |
+| `check-structure` | Challenge ids and lesson slugs are unique; every answer index and buggy-line number is in range; the capstone is well-formed (four options, explanation and scenario on every question); the placement check has exactly two questions per track; every project brief points at a real track |
 | `check-blocks` | Every calculator formula evaluates to a number with its defaults; every step-through highlight points at a real item; every sorter answer is a valid category; every visual key exists; every lesson has practice blocks in `extras` with in-range answers and complete steps; every lesson has at least one interactive element, five interview questions and three challenges |
 | `test-solutions` | **Every code challenge's reference solution passes its own tests**, and its starter code does *not* (so no challenge is trivially solved). This caught several wrong expected values while the course was written |
+| `test-interview-terms` | The key-term logic behind the mock interview: word stemming, which terms count as distinctive, and overlap percentages |
 | `test-certificates` | Certificate issuing against an in-memory store with the same unique-index behaviour as MongoDB: idempotency, the course certificate requiring the capstone (and carrying its score), a simulated race, an ID collision, ID uniformity |
 | `test-certificate-pdf` | PDFs build and re-open from awkward input: non-Latin names, emoji, very long names, 200 characters with no spaces, an empty name |
 | `report-answer-balance` | Reports where correct answers land after the server shuffle (informational) |
@@ -462,14 +474,12 @@ Beyond these, every page was fetched and checked for a `200`, no lock screen, an
 
 Being upfront about what this is and isn't:
 
-**Built:** all 9 tracks, the capstone exam, portfolio project briefs, auth, server-side grading, progress, XP, streaks, badges, track gates, per-track cheatsheets, certificates with public verification and PDF.
+**Built:** all 10 tracks, the capstone exam, the placement check, the mock interview mode, portfolio project briefs, auth, server-side grading, progress, XP, streaks, badges, track gates, per-track cheatsheets, certificates with public verification and PDF.
 
 **Not built yet**
 
-- A skill-assessment quiz that recommends where to start was part of the original plan.
 - Email verification, password reset, and login rate limiting or lockout.
-- Automated **integration tests** in the repository, and a CI pipeline. The full flow (signup, locks, all nine gates, the capstone, certificate issuing, verification and PDF) was run end to end against a real MongoDB with throwaway scripts during development, but those scripts are not committed, so nothing re-runs them automatically.
-- Capstone questions for **Track 9**. The thirty capstone questions were written for the first eight tracks.
+- Automated **integration tests** in the repository, and a CI pipeline. The full flow (signup, locks, all ten gates, the capstone, certificate issuing, verification and PDF) was run end to end against a real MongoDB with throwaway scripts during development, but those scripts are not committed, so nothing re-runs them automatically.
 
 **Known limitations**
 

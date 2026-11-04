@@ -12,6 +12,7 @@ import { evalsAndObservability } from "./tracks/evals-and-observability";
 import { fineTuning } from "./tracks/fine-tuning";
 import { productionAi } from "./tracks/production-ai";
 import { advancedRag } from "./tracks/advanced-rag";
+import { servingAndMultimodal } from "./tracks/serving-and-multimodal";
 
 /** Appends the practice blocks in `extras` to each lesson's sections. */
 function withExtras(track: Track): Track {
@@ -29,7 +30,7 @@ function withExtras(track: Track): Track {
   };
 }
 
-export const tracks: Track[] = [llmFoundations, promptEngineering, embeddingsAndSearch, ragSystems, toolsAndAgents, evalsAndObservability, fineTuning, productionAi, advancedRag]
+export const tracks: Track[] = [llmFoundations, promptEngineering, embeddingsAndSearch, ragSystems, toolsAndAgents, evalsAndObservability, fineTuning, productionAi, advancedRag, servingAndMultimodal]
   .map(withExtras)
   .sort((a, b) => a.order - b.order);
 

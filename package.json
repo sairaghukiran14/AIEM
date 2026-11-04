@@ -11,8 +11,9 @@
     "verify:structure": "node scripts/check-structure.mjs",
     "verify:blocks": "node scripts/check-blocks.mjs",
     "verify:solutions": "node scripts/test-solutions.mjs",
+    "verify:interview": "node scripts/test-interview-terms.mjs",
     "verify:certificates": "node scripts/test-certificates.mjs && node scripts/test-certificate-pdf.mjs",
-    "verify": "npm run verify:structure && npm run verify:blocks && npm run verify:solutions && npm run verify:certificates"
+    "verify": "npm run verify:structure && npm run verify:blocks && npm run verify:solutions && npm run verify:interview && npm run verify:certificates"
   },
   "dependencies": {
     "bcryptjs": "^3.0.3",

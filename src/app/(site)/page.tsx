@@ -323,7 +323,7 @@ export default function HomePage() {
           <span className="min-w-0 flex-1">
             <span className="block font-medium leading-snug">Capstone: ship a support copilot</span>
             <span className="block text-sm text-text-muted">
-              Thirty decisions across every track, plus portfolio projects. Earns the course certificate.
+              Thirty-six decisions across every track, plus portfolio projects. Earns the course certificate.
             </span>
           </span>
           <span className="chip">Final</span>

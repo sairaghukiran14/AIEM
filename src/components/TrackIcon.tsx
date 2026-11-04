@@ -6,6 +6,7 @@ import {
   Network,
   Radar,
   Rocket,
+  Server,
   Sliders,
   Workflow,
   type LucideIcon,
@@ -19,6 +20,7 @@ const ICONS: Record<string, LucideIcon> = {
   Network,
   Radar,
   Rocket,
+  Server,
   Sliders,
   Workflow,
 };

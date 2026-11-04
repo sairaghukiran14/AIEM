@@ -45,6 +45,22 @@ for (const q of capstone.questions) {
   bump("capstone", q.correctIndex);
 }
 
+// ---- the placement assessment ----
+const { placementQuestions } = load(join(root, "src/content/assessment.ts"));
+const placementIds = new Set();
+const perTrack = {};
+for (const q of placementQuestions) {
+  if (placementIds.has(q.id)) bad("placement duplicate id " + q.id); placementIds.add(q.id);
+  if (q.options.length !== 4) bad(`placement ${q.id}: expected 4 options`);
+  if (q.correctIndex < 0 || q.correctIndex >= q.options.length) bad(`placement ${q.id}: correctIndex out of range`);
+  if (!q.explanation || q.explanation.length < 20) bad(`placement ${q.id}: missing explanation`);
+  perTrack[q.track] = (perTrack[q.track] || 0) + 1;
+}
+for (const t of readdirSync(join(root, "src/content/tracks"))) {
+  if (perTrack[t] !== 2) bad(`placement: track ${t} should have exactly 2 questions, has ${perTrack[t] || 0}`);
+}
+for (const t of Object.keys(perTrack)) if (!readdirSync(join(root, "src/content/tracks")).includes(t)) bad("placement: unknown track " + t);
+
 // ---- portfolio project briefs must point at real tracks ----
 const { projects } = load(join(root, "src/content/projects.ts"));
 const trackDirs = new Set(readdirSync(join(root, "src/content/tracks")));

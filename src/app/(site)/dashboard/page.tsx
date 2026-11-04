@@ -67,9 +67,26 @@ export default async function DashboardPage() {
       <section className="grid gap-4 sm:grid-cols-2">
         <div className="card flex flex-col justify-between gap-3 p-5">
           <div>
+            <p className="font-semibold">Practise for interviews</p>
+            <p className="mt-1 text-sm text-text-muted">
+              Answer real interview questions in your own words, then compare with a strong answer. Or take the
+              placement check to find where to focus.
+            </p>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <Link href="/interview" className="btn btn-ghost">
+              Mock interview
+            </Link>
+            <Link href="/assess" className="btn btn-ghost">
+              Placement check
+            </Link>
+          </div>
+        </div>
+        <div className="card flex flex-col justify-between gap-3 p-5">
+          <div>
             <p className="font-semibold">Capstone</p>
             <p className="mt-1 text-sm text-text-muted">
-              Thirty decisions on one case study. Opens after all {tracks.length} track gates and, with them,
+              Thirty-six decisions on one case study. Opens after all {tracks.length} track gates and, with them,
               earns the course certificate.
             </p>
           </div>
