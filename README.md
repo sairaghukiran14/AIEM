@@ -412,6 +412,7 @@ npm run dev      # http://localhost:3000
 | `npm run typecheck` | TypeScript, no emit |
 | `npm run verify` | Everything below, in one go |
 | `npm run e2e` | End-to-end checks against a running server and a real MongoDB (see below) |
+| `npm run edge` | Edge-case and security checks against a running server, including a live deployment (see below) |
 
 ---
 
@@ -478,6 +479,10 @@ Conventions that keep the course consistent:
 
 **End-to-end (`npm run e2e`)** needs a built server and a database, so it is not part of `verify`, but CI runs it on every push against a MongoDB container. It creates throwaway users and checks: signup and login, the rate limit (the 9th wrong password for one address gets a 429), the full password-reset flow (only a token hash is stored, a link works once, an expired or unknown link is refused, and a session from before the reset is signed out), track and capstone locks, every gate with wrong and right answers, the course certificate, its public page and its PDF. It deletes everything it created.
 
+**Edge cases (`npm run edge`)** targets what usually breaks in production, and is safe to point at a live site (`BASE_URL=https://... EXPECT_MAIL=1 npm run edge`) because every account uses Resend's test recipient and it deletes what it creates. It covers: malformed and hostile input (invalid JSON, operator objects instead of strings, 2 MB bodies, over-long names, emails and passwords, email case and unicode); concurrency (simultaneous signups, a burst of wrong logins from many addresses, simultaneous passing submissions, simultaneous use of one reset link); sessions (tampered, garbage and `alg: none` tokens, cookie flags, redirects, open-redirect attempts); challenge submissions with nonsense answers; script-like names rendered on every page and in the PDF; malformed certificate ids; that no page leaks an answer key or solution; locked content; 404s; and the security headers.
+
+A live deployment can report its own configuration at `/api/health` (booleans only: database reachable, `AUTH_SECRET` set, email configured, `SITE_URL` set).
+
 Beyond these, every page was fetched and checked for a `200`, no lock screen, an interview section, and **no answer keys in the HTML**, and each interactive component was exercised with real clicks and drags in a browser.
 
 ---
@@ -494,6 +499,8 @@ Being upfront about what this is and isn't:
 
 **Known limitations**
 
+- **Logout clears the browser's cookie but does not revoke the token.** Sessions are signed, stateless tokens valid for 30 days, so a copied cookie keeps working after logout until it expires. A password reset does revoke older sessions. Server-side session records would be needed to revoke on logout.
+- **No Content-Security-Policy yet.** The other security headers are set (`nosniff`, `X-Frame-Options: DENY`, `Referrer-Policy`, `Permissions-Policy`), but a CSP needs per-request nonces because Next.js and React inject inline scripts, and a wrong policy would break the site.
 - **Rate limits use fixed windows and are keyed by address.** The per-address login limit (8 wrong attempts in 15 minutes) also means someone can lock a known email out for 15 minutes by guessing wrong on purpose. That trade-off was chosen over allowing unlimited guessing. Limits depend on the platform's forwarded-address header, which Vercel sets.
 - **Password reset needs an email provider.** Without `RESEND_API_KEY` and `MAIL_FROM` in production, no email is sent. The form still shows its neutral message, so the failure is only visible in the server logs.
 - **Portfolio projects are not graded.** They are briefs with self-ticked checklists, saved only in the browser, and they do not affect the certificate.

@@ -44,3 +44,4 @@ jobs:
             sleep 1
           done
           npm run e2e || { echo "--- server log ---"; cat server.log; exit 1; }
+          npm run edge || { echo "--- server log ---"; cat server.log; exit 1; }
