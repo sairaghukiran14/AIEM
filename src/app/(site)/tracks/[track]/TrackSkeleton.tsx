@@ -1,6 +1,6 @@
 import { LoadingRegion, Skeleton } from "@/components/Skeleton";
 
-export default function Loading() {
+export function TrackSkeleton() {
   return (
     <LoadingRegion label="Loading track">
       <div aria-hidden="true" className="space-y-10">

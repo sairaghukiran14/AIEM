@@ -1,6 +1,6 @@
 import { LoadingRegion, Skeleton } from "@/components/Skeleton";
 
-export default function Loading() {
+export function CertificatesSkeleton() {
   return (
     <LoadingRegion label="Loading your certificates">
       <div aria-hidden="true" className="space-y-10">

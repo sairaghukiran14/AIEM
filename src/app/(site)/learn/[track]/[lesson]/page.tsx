@@ -1,3 +1,4 @@
+import { Suspense } from "react";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ArrowLeft, ArrowRight, CheckCircle2, Clock, Lock, MessagesSquare } from "lucide-react";
@@ -8,6 +9,8 @@ import { RichText } from "@/components/RichText";
 import { getLesson, getLessonNeighbours, toClientChallenge } from "@/content";
 import { getCurrentUser } from "@/lib/auth";
 import { isTrackUnlocked, loadProgress } from "@/lib/progress";
+
+import { LessonSkeleton } from "./LessonSkeleton";
 
 type Props = { params: Promise<{ track: string; lesson: string }> };
 
@@ -39,6 +42,16 @@ export default async function LessonPage({ params }: Props) {
   const { track: trackSlug, lesson: lessonSlug } = await params;
   const found = getLesson(trackSlug, lessonSlug);
   if (!found) notFound();
+
+  // The 404 check above runs before streaming starts, so unknown lessons keep their 404 status.
+  return (
+    <Suspense fallback={<LessonSkeleton />}>
+      <LessonContent found={found} />
+    </Suspense>
+  );
+}
+
+async function LessonContent({ found }: { found: NonNullable<ReturnType<typeof getLesson>> }) {
   const { track, lesson } = found;
 
   const user = await getCurrentUser();

@@ -1,6 +1,6 @@
 import { LoadingRegion, Skeleton, SkeletonCard } from "@/components/Skeleton";
 
-export default function Loading() {
+export function DashboardSkeleton() {
   return (
     <LoadingRegion label="Loading your dashboard">
       <div aria-hidden="true" className="space-y-10">

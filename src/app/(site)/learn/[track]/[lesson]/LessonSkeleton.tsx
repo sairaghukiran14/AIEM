@@ -1,6 +1,6 @@
 import { LoadingRegion, Skeleton, SkeletonText } from "@/components/Skeleton";
 
-export default function Loading() {
+export function LessonSkeleton() {
   return (
     <LoadingRegion label="Loading lesson">
       <div aria-hidden="true" className="grid gap-10 lg:grid-cols-[1fr_14rem]">

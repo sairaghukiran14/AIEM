@@ -1,3 +1,4 @@
+import { Suspense } from "react";
 import Link from "next/link";
 import { Award, Download, ExternalLink, Lock } from "lucide-react";
 
@@ -11,6 +12,8 @@ import {
   listCertificates,
   type CertificateView,
 } from "@/lib/certificates";
+
+import { CertificatesSkeleton } from "./CertificatesSkeleton";
 
 export const metadata = { title: "My certificates" };
 
@@ -28,7 +31,16 @@ function EarnedActions({ cert }: { cert: CertificateView }) {
 }
 
 export default async function CertificatesPage() {
+  // Redirect before streaming starts, so a signed-out visit still gets a real redirect.
   const user = await requireUser("/certificates");
+  return (
+    <Suspense fallback={<CertificatesSkeleton />}>
+      <CertificatesContent user={user} />
+    </Suspense>
+  );
+}
+
+async function CertificatesContent({ user }: { user: Awaited<ReturnType<typeof requireUser>> }) {
 
   let certs: CertificateView[] = [];
   let unavailable = false;

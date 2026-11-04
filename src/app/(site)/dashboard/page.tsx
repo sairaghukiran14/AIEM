@@ -1,3 +1,4 @@
+import { Suspense } from "react";
 import Link from "next/link";
 import { Award, Flame, Trophy, Zap } from "lucide-react";
 
@@ -9,10 +10,21 @@ import { connectDB } from "@/lib/db";
 import { isTrackUnlocked, loadProgress, trackCompletion } from "@/lib/progress";
 import { Submission } from "@/models/Submission";
 
+import { DashboardSkeleton } from "./DashboardSkeleton";
+
 export const metadata = { title: "Dashboard" };
 
 export default async function DashboardPage() {
+  // Redirect before streaming starts, so a signed-out visit still gets a real redirect.
   const user = await requireUser("/dashboard");
+  return (
+    <Suspense fallback={<DashboardSkeleton />}>
+      <DashboardContent user={user} />
+    </Suspense>
+  );
+}
+
+async function DashboardContent({ user }: { user: Awaited<ReturnType<typeof requireUser>> }) {
   const progress = await loadProgress(user.id);
 
   let recent: { challengeId: string; score: number; maxScore: number; passed: boolean; createdAt: Date }[] = [];
