@@ -87,7 +87,7 @@ Sorters are **practice only**: they are not scored or stored. Scored work happen
 |---|---|
 | **Quiz** (the track **gate** and the **capstone**) | On the **server**. Per-question explanations are revealed only after submitting. |
 | **Spot the bug** | On the server: the learner picks the buggy line *and* the reason; both are scored. |
-| **Code** | In the **browser**, inside a sandboxed Web Worker with a 2.5 s timeout, against visible test cases. See [limitations](#status-and-known-limitations). |
+| **Code** | On the **server**, in a WebAssembly sandbox (QuickJS) with a memory limit and a 3 s deadline. The browser sends the *code*, never a result. A Web Worker in the browser gives instant feedback while writing, but only the server's run counts. See [limitations](#status-and-known-limitations). |
 
 XP is awarded **once**, the first time each challenge is passed. A lesson is complete when all three of its challenges are passed, and a track's gate only opens when all six of its lessons are complete.
 
@@ -97,6 +97,7 @@ Because certificates are the product's promise, the scoring is designed so a lea
 
 - **Answer keys never leave the server.** Content is converted to a client-safe shape before it reaches the browser; correct answers, explanations and reference solutions are absent from the page payload. (This was checked by fetching every lesson page and searching the HTML for answer keys.)
 - **Answer positions are shuffled server-side, and balanced.** Hand-written content puts the right answer in the same slot far too often (option B for between 70% and 97% of questions, depending on the track), so "always pick B" would nearly pass a gate. Options are now reordered with a seeded, *balanced* permutation per quiz, so each position is used about equally. The shuffle is deterministic, so the page that serves a question and the route that grades it always agree.
+- **Code is run by the server, in a sandbox.** The learner's source is executed in QuickJS compiled to WebAssembly: no `process`, no files, no network, no timers, a 32 MB memory limit and a 3 s deadline. Each grading gets its own engine instance, because QuickJS aborts while shutting down after an out-of-memory error, and a shared one would break every later submission. Code runs are also limited to 20 per account per 5 minutes.
 - **The shuffle itself does not leak.** The browser only ever sees *display* positions. The server translates a submitted position back to the original option before grading. (An earlier design that sent original indices to the browser would have revealed the answer; it was removed.)
 - **Locks are enforced by the API, not just hidden in the UI.** Submitting to a locked track, or to the capstone before every track gate is passed, returns `403`.
 - **Certificates rest on the gates and the capstone**, which are graded on the server, rather than on code-challenge XP.
@@ -154,7 +155,7 @@ flowchart TB
     subgraph Browser
         RSC["Server-rendered pages<br/>(HTML + RSC payload)"]
         CC["Client components<br/>visuals · steppers · calculators · predict/example/compare · runners"]
-        WW["Web Worker<br/>runs learner code, 2.5 s timeout"]
+        WW["Web Worker<br/>instant feedback only; the server grades"]
     end
 
     subgraph Next["Next.js 16 App Router (Node)"]
@@ -216,6 +217,7 @@ erDiagram
     USER ||--o{ CERTIFICATE : earns
     USER ||--o{ PASSWORD_RESET : requests
     USER ||--o{ EMAIL_VERIFICATION : confirms
+    USER ||--o{ EMAIL_CHANGE : requests
 
     USER {
         string email UK
@@ -227,6 +229,7 @@ erDiagram
         list badges
         date passwordChangedAt
         date emailVerifiedAt
+        number sessionVersion "bumped to sign out everywhere"
     }
     PROGRESS {
         string lessonSlug "unique per user"
@@ -250,6 +253,15 @@ erDiagram
     EMAIL_VERIFICATION {
         string tokenHash UK "only the hash is stored"
         date expiresAt "TTL, 24 hours"
+    }
+    EMAIL_CHANGE {
+        string newEmail
+        string tokenHash UK "only the hash is stored"
+        date expiresAt "TTL, 1 hour"
+    }
+    REVOKED_SESSION {
+        string jti UK "a signed-out token"
+        date expiresAt "TTL, until the token would expire"
     }
     CERTIFICATE {
         string certId UK
@@ -323,18 +335,21 @@ Type definitions live in [`src/content/types.ts`](src/content/types.ts).
 │   │   │   ├── capstone/         the final exam and the portfolio project briefs
 │   │   │   ├── assess/           the placement check
 │   │   │   ├── interview/        the mock interview mode
+│   │   │   ├── account/          email change and sign out everywhere
 │   │   ├── dashboard/        XP, streak, badges, resume, capstone and certificates links
 │   │   │   ├── certificates/     "my certificates" (reconciles, then lists)
 │   │   │   ├── verify/           public lookup and /verify/[certId]
 │   │   │   └── cheatsheets/      printable per-track cheatsheets
 │   │   └── api/
-│   │       ├── auth/             signup · login · logout
+│   │       ├── auth/             signup · login · logout · forgot · reset · verify-email
+│   │       ├── account/          change-email · confirm-email-change · signout-all
+│   │       ├── health/           deployment configuration as booleans
 │   │       ├── challenges/submit/   server-side grading
 │   │       └── certificates/[certId]/pdf/   PDF download
 │   ├── components/
 │   │   ├── visuals/              15 bespoke interactive visuals + registry
 │   │   ├── interactive/          Stepper · Calculator · Sorter (data-driven)
-│   │   ├── challenges/           Quiz / Bug / Code runners, Web Worker
+│   │   ├── challenges/           Quiz / Bug / Code runners, Web Worker (public/code-worker.js)
 │   │   └── …                     BlockRenderer, CertificateCard, Logo, header
 │   ├── content/
 │   │   ├── types.ts              the content schema
@@ -404,6 +419,7 @@ npm run dev      # http://localhost:3000
 | `AUTH_SECRET` | yes | Signs session cookies. Use a long random value. |
 | `REVIEW_UNLOCK_ALL` | no | Set to `1` to open every track without passing gates, for reviewing content. **Ignored in production builds.** |
 | `DEV_ALLOWED_ORIGINS` | no | Extra hostnames allowed to load the dev server (comma separated). |
+| `TRUST_PROXY_HEADERS` | when self-hosting behind a proxy | `1` makes the rate limiter believe `X-Forwarded-For`. It is trusted automatically on Vercel. Anywhere else the header is something the caller can set, so without this the per-address limits are skipped and only the per-account limits apply. |
 | `REQUIRE_EMAIL_VERIFICATION` | no | `1` holds certificates until the person confirms their email, `0` turns it off. By default it is on exactly when email is configured. |
 | `SITE_URL` | no | Public origin used in certificate verification URLs and password-reset links. Defaults to the request's origin. |
 | `RESEND_API_KEY`, `MAIL_FROM` | for password reset in production | Send email through [Resend](https://resend.com). `MAIL_FROM` is the sender, such as `AIEM <no-reply@yourdomain.com>`. Without them, development logs the reset link to the server console, and production logs an error and sends nothing. |
@@ -479,15 +495,15 @@ Conventions that keep the course consistent:
 | `check-structure` | Challenge ids and lesson slugs are unique; every answer index and buggy-line number is in range; the capstone is well-formed (four options, explanation and scenario on every question); the placement check has exactly two questions per track; every project brief points at a real track |
 | `check-blocks` | Every calculator formula evaluates to a number with its defaults; every step-through highlight points at a real item; every sorter answer is a valid category; every visual key exists; every lesson has practice blocks in `extras` with in-range answers and complete steps; every lesson has at least one interactive element, five interview questions and three challenges |
 | `test-solutions` | **Every code challenge's reference solution passes its own tests**, and its starter code does *not* (so no challenge is trivially solved). This caught several wrong expected values while the course was written |
+| `report-answer-balance` (as `verify:balance`) | **Fails** if the correct answers are lopsided after the server shuffle: each position must hold 20-30% of lesson-quiz answers, 15-35% of bug reasons, and each gate at most a quarter plus one |
 | `test-interview-terms` | The key-term logic behind the mock interview: word stemming, which terms count as distinctive, and overlap percentages |
 | `test-rate-limit-and-mail` | The rate limiter's window and decision logic, how the client address is read, and the email request that would be sent |
 | `test-certificates` | Certificate issuing against an in-memory store with the same unique-index behaviour as MongoDB: idempotency, the course certificate requiring the capstone (and carrying its score), a simulated race, an ID collision, ID uniformity |
 | `test-certificate-pdf` | PDFs build and re-open from awkward input: non-Latin names, emoji, very long names, 200 characters with no spaces, an empty name, every seal variant, and a link too long for a QR code; each PDF stays under a size limit |
-| `report-answer-balance` | Reports where correct answers land after the server shuffle (informational) |
 
 **End-to-end (`npm run e2e`)** needs a built server and a database, so it is not part of `verify`, but CI runs it on every push against a MongoDB container. It creates throwaway users and checks: signup and login, the rate limit (the 9th wrong password for one address gets a 429), the full password-reset flow (only a token hash is stored, a link works once, an expired or unknown link is refused, and a session from before the reset is signed out), email verification (a link works once, only a hash is stored, opening the page does not spend it, and a certificate is held until the address is confirmed and then released), track and capstone locks, every gate with wrong and right answers, the course certificate, its public page and its PDF. It deletes everything it created.
 
-**Edge cases (`npm run edge`)** targets what usually breaks in production, and is safe to point at a live site (`BASE_URL=https://... EXPECT_MAIL=1 npm run edge`) because every account uses Resend's test recipient and it deletes what it creates. It covers: malformed and hostile input (invalid JSON, operator objects instead of strings, 2 MB bodies, over-long names, emails and passwords, email case and unicode); concurrency (simultaneous signups, a burst of wrong logins from many addresses, simultaneous passing submissions, simultaneous use of one reset link); sessions (tampered, garbage and `alg: none` tokens, cookie flags, redirects, open-redirect attempts, and that a cookie outliving its account or signed out by a password reset shows the login form instead of looping between pages); challenge submissions with nonsense answers; script-like names rendered on every page and in the PDF; malformed certificate ids; that no page leaks an answer key or solution; locked content; 404s; and the security headers.
+**Edge cases (`npm run edge`)** targets what usually breaks in production, and is safe to point at a live site (`BASE_URL=https://... EXPECT_MAIL=1 npm run edge`) because every account uses Resend's test recipient and it deletes what it creates. It covers: malformed and hostile input (invalid JSON, operator objects instead of strings, 2 MB bodies, over-long names, emails and passwords, email case and unicode); concurrency (simultaneous signups, a burst of wrong logins from many addresses, simultaneous passing submissions, simultaneous use of one reset link); sessions (tampered, garbage and `alg: none` tokens, cookie flags, redirects, open-redirect attempts, and that a cookie outliving its account or signed out by a password reset shows the login form instead of looping between pages); challenge submissions with nonsense answers; server-side code grading (the starter fails, the solution passes, an infinite loop, a memory bomb, runaway recursion and sandbox escapes all fail safely, and the XP is awarded once); session revocation, sign out everywhere and the full email-change flow; body-size, attempt and rate limits; login timing; the Content-Security-Policy (a fresh nonce on every request and on every inline script, and the worker's own policy); certificates for names in other alphabets read back out of the real PDF; script-like names rendered on every page and in the PDF; malformed certificate ids; that no page leaks an answer key or solution; locked content; 404s; and the security headers.
 
 A live deployment can report its own configuration at `/api/health` (booleans only: database reachable, `AUTH_SECRET` set, email configured, `SITE_URL` set).
 
@@ -504,19 +520,21 @@ Being upfront about what this is and isn't:
 **Not built yet**
 
 - A hands-on build-along lesson for model serving (vLLM and a GPU); Track 10 covers serving as ideas and arithmetic.
-- Changing the email address on an account.
-- Server-side revocation of sessions on logout, and a Content-Security-Policy (both under limitations below).
+- Hidden test cases for code challenges (see limitations).
+- Certificate PDFs for scripts beyond Latin, Greek, Cyrillic, Vietnamese and Devanagari (see limitations).
 
 **Known limitations**
 
-- **Logout clears the browser's cookie but does not revoke the token.** Sessions are signed, stateless tokens valid for 30 days, so a copied cookie keeps working after logout until it expires. A password reset does revoke older sessions. Server-side session records would be needed to revoke on logout.
-- **No Content-Security-Policy yet.** The other security headers are set (`nosniff`, `X-Frame-Options: DENY`, `Referrer-Policy`, `Permissions-Policy`), but a CSP needs per-request nonces because Next.js and React inject inline scripts, and a wrong policy would break the site.
+- **Sessions are checked against the database on every request.** Logout revokes that one token (a copied cookie stops working), a password reset or "Sign out everywhere" bumps a version on the account and signs out every device, and changing the email address does the same. The cost is one extra database read per request.
+- **The Content-Security-Policy allows inline styles.** Scripts need a fresh per-request nonce (`src/proxy.ts`), with no `unsafe-inline` and, in production, no `unsafe-eval`. Styles still allow `unsafe-inline`, because React and the animation library write style attributes, which a nonce cannot cover. The code-challenge worker is the only place `eval` is allowed, from its own file with its own policy that forbids all network access.
 - **Rate limits use fixed windows and are keyed by address.** The per-address login limit (8 wrong attempts in 15 minutes) also means someone can lock a known email out for 15 minutes by guessing wrong on purpose. That trade-off was chosen over allowing unlimited guessing. Limits depend on the platform's forwarded-address header, which Vercel sets.
 - **Password reset needs an email provider.** Without `RESEND_API_KEY` and `MAIL_FROM` in production, no email is sent. The form still shows its neutral message, so the failure is only visible in the server logs.
 - **Portfolio projects are not graded.** They are briefs with self-ticked checklists, saved only in the browser, and they do not affect the certificate.
-- **Code challenges are graded in the browser.** The server cannot safely run arbitrary learner code, so it records the pass count the client reports (after checking it is well-formed). XP from code challenges is therefore self-reported. Quizzes, bug hunts and gates are graded on the server and cannot be faked, which is why certificates depend on gates.
+- **Code challenge tests are visible.** The server now runs the code itself, so a pass cannot be claimed without code that returns the right values. But the test cases are shown to the learner, so someone determined can write code that special-cases them. Hidden tests would close that and mean writing a second set of tests for every challenge. Certificates depend on gates and the capstone, which are not affected.
+- **The sandbox is not Node.** QuickJS supports modern JavaScript but not browser or Node APIs. Every reference solution is checked in it (`npm run verify`), but a learner's code that passes in their browser could use something the sandbox lacks. The result tells them which test failed and why.
 - **Labs are simulated.** Visuals use hand-made or toy data (and say so); there are no live model calls.
-- **The built-in PDF font covers Latin-1 only.** Names in other scripts appear as `?` in the PDF (the web page shows them correctly). Embedding a Unicode font would fix it.
+- **Certificate PDFs cover some scripts, not all.** Latin, extended Latin, Vietnamese, Greek, Cyrillic and Devanagari names print correctly, using bundled Noto Serif fonts for the letters the standard font lacks. Other scripts (for example CJK, Arabic, Hebrew, Thai and Telugu) print as `?` in the PDF; the web page shows every name correctly. Telugu was tried and its letter joining came out wrong, so it is deliberately not claimed.
+- **Login and signup timing.** An unknown email now costs the same time as a known one. Signup still says when an address is already registered, which is a deliberate usability trade-off.
 - **Public by design:** a certificate's link exposes the holder's name, credential, score and date to anyone who has it.
 
 

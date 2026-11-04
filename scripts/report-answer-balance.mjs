@@ -1,4 +1,5 @@
-// Reports where the correct answer lands after the server-side shuffle, for every quiz and gate.
+// Reports where the correct answer lands after the server-side shuffle, for every quiz and gate, and FAILS if any set is
+// lopsided. It is part of `npm run verify`, so a content change that skews the answer positions cannot be merged.
 // Run with: node scripts/report-answer-balance.mjs
 import { readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
@@ -40,3 +41,18 @@ console.log("bug-reason correct position [A,B,C,D]:", bugDist);
 const { capstone } = load(join(root, "src/content/capstone.ts"));
 const cap = [0,0,0,0]; quiz(capstone).forEach(p => cap[p]++); gates[capstone.id] = cap;
 console.log("gates and capstone:", gates);
+
+// ---- enforce it ----
+let problems = 0;
+const bad = (msg) => { problems++; console.log("PROBLEM", msg); };
+const share = (d) => d.map((n) => n / d.reduce((a, b) => a + b, 0));
+const within = (name, d, min, max) => { share(d).forEach((x, i) => { if (x < min || x > max) bad(`${name}: position ${"ABCD"[i]} holds ${(x * 100).toFixed(0)}% of correct answers (allowed ${min * 100}-${max * 100}%)`); }); };
+within("lesson quizzes", quizDist, 0.2, 0.3);
+within("bug reasons", bugDist, 0.15, 0.35);
+for (const [id, d] of Object.entries(gates)) {
+  const n = d.reduce((a, b) => a + b, 0);
+  const cap = Math.ceil(n / 4) + 1;
+  d.forEach((c, i) => { if (c > cap) bad(`${id}: position ${"ABCD"[i]} is correct ${c} times of ${n} (at most ${cap} allowed)`); });
+}
+console.log(problems ? `${problems} balance problems` : "answer balance ok");
+if (problems) process.exitCode = 1;

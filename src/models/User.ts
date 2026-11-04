@@ -42,6 +42,8 @@ const UserSchema = new Schema(
     passwordChangedAt: { type: Date, default: null },
     // Set when the person confirms the address through the emailed link.
     emailVerifiedAt: { type: Date, default: null },
+    // Stamped into every session token. Bumping it signs the user out everywhere.
+    sessionVersion: { type: Number, default: 0 },
     xp: { type: Number, default: 0 },
     streakCount: { type: Number, default: 0 },
     lastActiveDay: { type: String, default: "" }, // YYYY-MM-DD in UTC

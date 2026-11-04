@@ -1,7 +1,9 @@
 import { NextResponse } from "next/server";
+
+import { readJsonBody } from "@/lib/read-json";
 import { z } from "zod";
 
-import { createSession, verifyPassword } from "@/lib/auth";
+import { createSession, spendPasswordCheckTime, verifyPassword } from "@/lib/auth";
 import { connectDB } from "@/lib/db";
 import { hashed, ipOf, limited, POLICIES } from "@/lib/rate-limit";
 import { User, type UserDoc } from "@/models/User";
@@ -12,12 +14,9 @@ const LoginSchema = z.object({
 });
 
 export async function POST(request: Request) {
-  let body: unknown;
-  try {
-    body = await request.json();
-  } catch {
-    return NextResponse.json({ error: "Invalid request body" }, { status: 400 });
-  }
+  const read = await readJsonBody(request, 8000);
+  if (!read.ok) return read.response;
+  const body: unknown = read.data;
 
   const parsed = LoginSchema.safeParse(body);
   if (!parsed.success) {
@@ -46,12 +45,15 @@ export async function POST(request: Request) {
       { error: "Email or password is incorrect" },
       { status: 401 }
     );
-    if (!user) return invalid;
+    if (!user) {
+      await spendPasswordCheckTime(password);
+      return invalid;
+    }
 
     const ok = await verifyPassword(password, user.passwordHash);
     if (!ok) return invalid;
 
-    await createSession(user._id.toString());
+    await createSession(user._id.toString(), user.sessionVersion ?? 0);
 
     return NextResponse.json({ ok: true });
   } catch (err) {

@@ -27,6 +27,9 @@ jobs:
           node-version: 22
           cache: npm
 
+      - name: Install poppler (used by the PDF tests to read text back out of certificates)
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq poppler-utils
+
       - run: npm ci
       - run: npm run typecheck
       - run: npm run lint
@@ -39,7 +42,7 @@ jobs:
       - name: End-to-end checks against a real database
         run: |
           # Run with email verification forced on, so the held-certificate path is exercised too.
-          REQUIRE_EMAIL_VERIFICATION=1 npm start -- -p 3000 > server.log 2>&1 &
+          TRUST_PROXY_HEADERS=1 REQUIRE_EMAIL_VERIFICATION=1 npm start -- -p 3000 > server.log 2>&1 &
           for i in $(seq 1 30); do
             curl -sf http://localhost:3000/login > /dev/null && break
             sleep 1

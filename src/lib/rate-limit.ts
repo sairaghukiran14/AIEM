@@ -5,7 +5,7 @@ import { NextResponse } from "next/server";
 
 import { connectDB } from "@/lib/db";
 import { RateLimit } from "@/models/RateLimit";
-import { clientIp, counterKey, decide, waitText, windowStart, type Decision, type Policy } from "@/lib/rate-limit-core";
+import { clientIp, counterKey, decide, trustsProxyHeaders, waitText, windowStart, type Decision, type Policy } from "@/lib/rate-limit-core";
 
 /** Policies for the account endpoints. Per-IP limits stop floods, per-email limits stop targeted guessing. */
 export const POLICIES = {
@@ -18,6 +18,10 @@ export const POLICIES = {
   verifyIp: { name: "verify-ip", limit: 20, windowSec: 60 * 60 },
   resendUser: { name: "resend-user", limit: 3, windowSec: 60 * 60 },
   resendIp: { name: "resend-ip", limit: 10, windowSec: 60 * 60 },
+  healthIp: { name: "health-ip", limit: 60, windowSec: 60 },
+  submitUser: { name: "submit-user", limit: 90, windowSec: 5 * 60 },
+  codeUser: { name: "code-user", limit: 20, windowSec: 5 * 60 },
+  accountUser: { name: "account-user", limit: 10, windowSec: 60 * 60 },
 } satisfies Record<string, Policy>;
 
 /** Identities are hashed so email addresses are not kept in the counters. */
@@ -51,6 +55,7 @@ export async function limited(
 ): Promise<NextResponse | null> {
   let worst: Decision | null = null;
   for (const { policy, id } of checks) {
+    if (!id) continue; // no trustworthy client address: only the per-account limits apply
     const d = await consume(policy, id);
     if (!d.allowed && (!worst || d.retryAfterSec > worst.retryAfterSec)) worst = d;
   }
@@ -61,6 +66,7 @@ export async function limited(
   );
 }
 
+/** The caller's address, or an empty string when there is no proxy we trust to have set it honestly. */
 export function ipOf(request: Request): string {
-  return clientIp(request.headers);
+  return trustsProxyHeaders(process.env) ? clientIp(request.headers) : "";
 }

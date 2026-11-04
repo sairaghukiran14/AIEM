@@ -9,6 +9,18 @@ import { ResultBanner } from "./ResultBanner";
 import { runTests, type TestOutcome } from "./runCode";
 import { submitChallenge, type SubmitResult } from "./submit";
 
+type ServerFeedback = { fatal?: string | null; outcomes?: { name: string; passed: boolean; error?: string }[] };
+
+/** A short reason from the server's check: its fatal message, or the tests it failed. */
+function serverReason(feedback: unknown): string {
+  const f = (feedback ?? {}) as ServerFeedback;
+  if (f.fatal) return `: ${f.fatal}`;
+  const failed = (f.outcomes ?? []).filter((o) => !o.passed);
+  if (failed.length === 0) return "";
+  const first = failed[0];
+  return `: ${failed.length} test${failed.length === 1 ? "" : "s"} failed, starting with "${first.name}"${first.error ? ` (${first.error})` : ""}`;
+}
+
 export function CodeRunner({
   challenge,
   signedIn,
@@ -45,10 +57,8 @@ export function CodeRunner({
     setError(null);
     try {
       setResult(
-        await submitChallenge(challenge.id, {
-          passedTests: passedCount,
-          totalTests: challenge.tests.length,
-        })
+        // The code itself goes to the server, which runs it in a sandbox and decides. A pass count could be claimed by anyone.
+        await submitChallenge(challenge.id, { code })
       );
       onDone();
     } catch (e) {
@@ -157,6 +167,13 @@ export function CodeRunner({
       )}
 
       {result && <ResultBanner result={result} />}
+      {result && !result.passed && (
+        <p role="alert" className="rounded-lg border border-border-strong bg-bg-raised px-3 py-2 text-sm text-text-muted">
+          Our checker could not confirm this solution{serverReason(result.feedback)}. It runs your code in a stricter
+          sandbox than your browser, so code that relies on browser-only features can pass above and still fail here. Fix
+          it, run the tests again, and resubmit.
+        </p>
+      )}
       {error && (
         <p role="alert" className="text-sm text-red">
           {error}

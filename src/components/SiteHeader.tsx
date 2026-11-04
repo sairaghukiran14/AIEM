@@ -44,6 +44,9 @@ export async function SiteHeader() {
               <Flame className="size-4" />
               {user.streakCount}
             </span>
+            <Link href="/account" className="hidden rounded-md px-2 py-1 text-xs font-medium text-text-muted hover:bg-bg-hover hover:text-text sm:inline">
+              Account
+            </Link>
             <LogoutButton />
           </div>
         ) : (

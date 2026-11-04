@@ -6,8 +6,10 @@
 //
 // Environment: BASE_URL (default http://localhost:3000), MONGODB_URI (or .env.local),
 // EXPECT_MAIL=1 to require that the deployment reports email as configured.
+import { execFileSync } from "node:child_process";
 import { createHash, randomBytes } from "node:crypto";
-import { existsSync, readdirSync, readFileSync } from "node:fs";
+import { existsSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { createRequire } from "node:module";
 import { fileURLToPath } from "node:url";
@@ -42,11 +44,23 @@ let counter = 0;
 const newEmail = (label = "u") => `delivered+edge-${run}-${label}${++counter}@resend.dev`;
 const sha = (s) => createHash("sha256").update(s).digest("hex");
 const createdEmails = [];
+const createdCertIds = [];
 const PASSWORD = "Pw-" + randomBytes(9).toString("hex");
+
+async function until(fn, ms = 8000) {
+  const end = Date.now() + ms;
+  while (Date.now() < end) {
+    if (await fn()) return true;
+    await new Promise((r) => setTimeout(r, 150));
+  }
+  return false;
+}
 
 let db;
 async function clearIpLimits() {
-  await db.collection("ratelimits").deleteMany({ key: { $regex: "^(login|signup|forgot|reset)-ip:" } });
+  // Only counters keyed by an address, plus the one per-account policy this suite drives from its own fake addresses.
+  await db.collection("ratelimits").deleteMany({ key: { $regex: "^(login|signup|forgot|reset|verify|resend|health)-ip:" } });
+  await db.collection("ratelimits").deleteMany({ key: { $regex: "^account-user:198\\.51\\.100\\." } });
 }
 
 async function http(method, path, { body, raw, cookie, ip, headers = {} } = {}) {
@@ -81,9 +95,17 @@ const track1 = {
   gateQuestions: (readFileSync(join(track1Dir, "index.ts"), "utf8").match(/id: "g\d+"/g) || []).length,
   lessons: readdirSync(join(track1Dir, "lessons")).sort().map((f) => {
     const s = readFileSync(join(track1Dir, "lessons", f), "utf8");
-    return { slug: s.match(/^ {2}slug: "([^"]+)"/m)[1], ids: [...new Set([...s.matchAll(/id: "(\w+-\d+-(?:quiz|bug|code))"/g)].map((m) => m[1]))] };
+    return { file: join(track1Dir, "lessons", f), slug: s.match(/^ {2}slug: "([^"]+)"/m)[1], ids: [...new Set([...s.matchAll(/id: "(\w+-\d+-(?:quiz|bug|code))"/g)].map((m) => m[1]))] };
   }),
 };
+const ts = require("typescript");
+/** Loads one code challenge (starter, solution, tests) from a lesson file, as the server sees it. */
+function loadCodeChallenge(file, id) {
+  const js = ts.transpileModule(readFileSync(file, "utf8"), { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 } }).outputText;
+  const m = { exports: {} };
+  new Function("module", "exports", "require", js)(m, m.exports, () => ({}));
+  return m.exports.lesson.challenges.find((c) => c.id === id);
+}
 const allTracks = readdirSync(join(root, "src/content/tracks"));
 const lessonPages = allTracks.flatMap((t) =>
   readdirSync(join(root, "src/content/tracks", t, "lessons")).sort().map((f) => {
@@ -218,7 +240,7 @@ async function main() {
   const lo = await post("/api/auth/logout", {}, { cookie });
   ok(lo.status === 200 && /aiem_session=;|Max-Age=0|Expires=Thu, 01 Jan 1970/i.test(lo.setCookie.join(";")), `logout clears the cookie (${lo.status})`);
   r = await probe(cookie);
-  info(`an old cookie replayed after logout -> ${r.status} (sessions are stateless tokens; logout clears the browser's cookie but does not revoke the token server-side)`);
+  ok(r.status === 401, `a cookie replayed after logout is refused (${r.status})`);
 
   // A cookie that outlives its account must never cause a redirect loop between /login and /dashboard.
   async function hops(path, cookieHeader, max = 8) {
@@ -250,7 +272,8 @@ async function main() {
     const h = await hops(path, staleLogin.cookie);
     ok(h.status === 200 && h.count <= 2, `a session signed out by a password reset does not loop on ${path} (ends ${h.status} after ${h.count} redirects)`);
   }
-  const live = await hops("/login", cookie);
+  const freshLogin = await post("/api/auth/login", { email: sessEmail, password: PASSWORD }, { ip: "198.51.100.36" });
+  const live = await hops("/login", freshLogin.cookie);
   ok(live.count === 1 && live.url === "/dashboard", `a valid session on /login still goes to /dashboard (${live.url})`);
 
   // open redirect
@@ -260,6 +283,126 @@ async function main() {
     const carried = r.text.match(/login\\",\\"next\\":\\"([^"\\]*)/)?.[1];
     ok(r.status === 200 && carried === "/dashboard", `login ?next=${next} falls back to /dashboard (form receives ${carried})`);
   }
+
+  // ======================================================== sessions, account changes and limits
+  section("Session revocation, account changes and size limits");
+  await clearIpLimits();
+  const probe2 = (c) => post("/api/challenges/submit", { challengeId: "no-such-challenge", answer: 1 }, { cookie: c });
+
+  // sign out everywhere
+  const soEmail = newEmail("so");
+  await signup(soEmail);
+  const sA = await post("/api/auth/login", { email: soEmail, password: PASSWORD }, { ip: "198.51.100.70" });
+  const sB = await post("/api/auth/login", { email: soEmail, password: PASSWORD }, { ip: "198.51.100.71" });
+  ok((await probe2(sA.cookie)).status === 404 && (await probe2(sB.cookie)).status === 404, "two devices are signed in");
+  r = await post("/api/account/signout-all", {});
+  ok(r.status === 401, `sign out everywhere needs a session (${r.status})`);
+  r = await post("/api/account/signout-all", {}, { cookie: sA.cookie });
+  ok(r.status === 200, `sign out everywhere works (${r.status})`);
+  ok((await probe2(sA.cookie)).status === 401 && (await probe2(sB.cookie)).status === 401, "both devices are now signed out");
+  const sC = await post("/api/auth/login", { email: soEmail, password: PASSWORD }, { ip: "198.51.100.72" });
+  ok(sC.status === 200 && (await probe2(sC.cookie)).status === 404, "signing in again works after signing out everywhere");
+
+  // size limits
+  r = await http("POST", "/api/auth/login", { raw: JSON.stringify({ email: "a@example.com", password: "x".repeat(9000) }), ip: "198.51.100.73" });
+  ok(r.status === 413, `a login body over 8 KB is refused with 413 (${r.status})`);
+  r = await http("POST", "/api/auth/forgot", { raw: JSON.stringify({ email: "a@example.com", pad: "x".repeat(5000) }), ip: "198.51.100.73" });
+  ok(r.status === 413, `a forgot-password body over 4 KB is refused with 413 (${r.status})`);
+  r = await http("POST", "/api/challenges/submit", { raw: JSON.stringify({ challengeId: "x", answer: "y".repeat(100_000) }), cookie: sC.cookie });
+  ok(r.status === 413, `a submission over 80 KB is refused with 413 (${r.status})`);
+  r = await http("POST", "/api/auth/login", { raw: "{not json", ip: "198.51.100.73" });
+  ok(r.status === 400, `bad JSON is still a 400 (${r.status})`);
+
+  // attempts are capped per challenge (rows are inserted directly, because the rate limit stops 100 fast attempts)
+  const capEmail = newEmail("cap");
+  await signup(capEmail);
+  const capLogin = await post("/api/auth/login", { email: capEmail, password: PASSWORD }, { ip: "198.51.100.74" });
+  const capUser = await db.collection("users").findOne({ email: capEmail });
+  const capQuiz = track1.lessons[0].ids.find((i) => i.endsWith("quiz"));
+  await db.collection("submissions").insertMany(Array.from({ length: 100 }, (_, i) => ({ userId: capUser._id, challengeId: capQuiz, trackSlug: "llm-foundations", lessonSlug: track1.lessons[0].slug, kind: "quiz", score: 0, maxScore: 5, passed: false, attempt: i + 1, xpAwarded: 0, answer: null, createdAt: new Date(), updatedAt: new Date() })));
+  r = await post("/api/challenges/submit", { challengeId: capQuiz, answer: [null, null, null, null, null] }, { cookie: capLogin.cookie });
+  ok(r.status === 429 && /attempts/i.test(r.json.error ?? ""), `the 101st attempt at one challenge is refused (${r.status})`);
+  ok((await db.collection("submissions").countDocuments({ userId: capUser._id, challengeId: capQuiz })) === 100, "no row was stored beyond the cap");
+
+  // submissions are rate limited per account
+  const rsEmail2 = newEmail("subrl");
+  await signup(rsEmail2);
+  const rsLogin = await post("/api/auth/login", { email: rsEmail2, password: PASSWORD }, { ip: "198.51.100.75" });
+  const codes2 = [];
+  for (let i = 0; i < 95; i++) codes2.push((await post("/api/challenges/submit", { challengeId: "no-such-challenge", answer: 1 }, { cookie: rsLogin.cookie })).status);
+  const n404 = codes2.filter((c) => c === 404).length, n429 = codes2.filter((c) => c === 429).length;
+  ok(n404 === 90 && n429 === 5, `submissions are limited to 90 per 5 minutes per account (${n404} answered, ${n429} limited)`);
+
+  // an address with no account must cost as much time as one with an account
+  const timeIt = async (email) => { const t = performance.now(); await post("/api/auth/login", { email, password: "Wrong-Passw0rd-1" }, { ip: "198.51.100.76" }); return performance.now() - t; };
+  await clearIpLimits();
+  const known = [], unknown = [];
+  const tEmail = newEmail("timing");
+  await signup(tEmail);
+  for (let i = 0; i < 5; i++) { known.push(await timeIt(tEmail)); unknown.push(await timeIt(`delivered+nobody-${run}-${i}@resend.dev`)); }
+  const med = (a) => [...a].sort((x, y) => x - y)[Math.floor(a.length / 2)];
+  ok(med(unknown) >= med(known) * 0.5, `an unknown address takes about as long as a known one (median ${Math.round(med(unknown))} ms vs ${Math.round(med(known))} ms)`);
+
+  // changing the email address
+  await clearIpLimits();
+  const ceEmail = newEmail("ce");
+  await signup(ceEmail);
+  const ceLogin = await post("/api/auth/login", { email: ceEmail, password: PASSWORD }, { ip: "198.51.100.77" });
+  const ceUser = await db.collection("users").findOne({ email: ceEmail });
+  const other = newEmail("taken");
+  await signup(other);
+  const newAddr = newEmail("fresh");
+  createdEmails.push(newAddr.toLowerCase());
+  const change = (body, c = ceLogin.cookie) => post("/api/account/change-email", body, { cookie: c, ip: "198.51.100.78" });
+  r = await post("/api/account/change-email", { newEmail: newAddr, password: PASSWORD });
+  ok(r.status === 401, `changing the email needs a session (${r.status})`);
+  r = await change({ newEmail: newAddr, password: "Not-The-Password-1" });
+  ok(r.status === 401, `a wrong current password is refused (${r.status})`);
+  r = await change({ newEmail: ceEmail, password: PASSWORD });
+  ok(r.status === 400, `the same address is refused (${r.status})`);
+  r = await change({ newEmail: other, password: PASSWORD });
+  ok(r.status === 409, `an address that already has an account is refused (${r.status})`);
+  r = await change({ newEmail: "not-an-email", password: PASSWORD });
+  ok(r.status === 400, `a malformed address is refused (${r.status})`);
+  r = await change({ newEmail: { $ne: "" }, password: PASSWORD });
+  ok(r.status === 400, `an operator object is refused (${r.status})`);
+  r = await change({ newEmail: newAddr, password: PASSWORD });
+  ok(r.status === 200 || r.status === 502, `a valid request is accepted, or 502 if email cannot be sent here (${r.status})`);
+  const pending = await db.collection("emailchanges").findOne({ userId: ceUser._id });
+  ok(!!pending && pending.newEmail === newAddr.toLowerCase() && /^[0-9a-f]{64}$/.test(pending.tokenHash), "a pending change is stored with only a hash of its token");
+  ok((await db.collection("users").findOne({ _id: ceUser._id })).email === ceEmail.toLowerCase(), "nothing changes until the link is opened");
+
+  const planted = randomBytes(32).toString("hex");
+  await db.collection("emailchanges").deleteMany({ userId: ceUser._id });
+  await db.collection("emailchanges").insertOne({ userId: ceUser._id, newEmail: newAddr.toLowerCase(), tokenHash: sha(planted), expiresAt: new Date(Date.now() + 3600_000), createdAt: new Date() });
+  r = await http("GET", `/confirm-email?token=${planted}`);
+  ok(r.status === 200 && (await db.collection("emailchanges").countDocuments({ tokenHash: sha(planted) })) === 1, "opening the confirmation page does not spend the link");
+  r = await post("/api/account/confirm-email-change", { token: "short" }, { ip: "198.51.100.79" });
+  ok(r.status === 400, `a too-short token is refused (${r.status})`);
+  r = await post("/api/account/confirm-email-change", { token: randomBytes(32).toString("hex") }, { ip: "198.51.100.79" });
+  ok(r.status === 400, `an unknown token is refused (${r.status})`);
+  const racers2 = await Promise.all(Array.from({ length: 4 }, () => post("/api/account/confirm-email-change", { token: planted }, { ip: "198.51.100.79" })));
+  ok(racers2.filter((x) => x.status === 200).length === 1, `4 simultaneous uses of the link: exactly one succeeds (${racers2.map((x) => x.status).join(",")})`);
+  const changed = await db.collection("users").findOne({ _id: ceUser._id });
+  ok(changed.email === newAddr.toLowerCase() && !!changed.emailVerifiedAt, "the address changed and counts as verified");
+  ok((await probe2(ceLogin.cookie)).status === 401, "every old session was signed out by the change");
+  r = await post("/api/auth/login", { email: ceEmail, password: PASSWORD }, { ip: "198.51.100.80" });
+  ok(r.status === 401, "the old address no longer signs in");
+  r = await post("/api/auth/login", { email: newAddr, password: PASSWORD }, { ip: "198.51.100.80" });
+  ok(r.status === 200, "the new address signs in");
+  const expiredTok = randomBytes(32).toString("hex");
+  await db.collection("emailchanges").insertOne({ userId: ceUser._id, newEmail: newEmail("late").toLowerCase(), tokenHash: sha(expiredTok), expiresAt: new Date(Date.now() - 1000), createdAt: new Date() });
+  r = await post("/api/account/confirm-email-change", { token: expiredTok }, { ip: "198.51.100.79" });
+  ok(r.status === 400, `an expired link is refused (${r.status})`);
+  const clashTok = randomBytes(32).toString("hex");
+  await db.collection("emailchanges").insertOne({ userId: ceUser._id, newEmail: other.toLowerCase(), tokenHash: sha(clashTok), expiresAt: new Date(Date.now() + 3600_000), createdAt: new Date() });
+  r = await post("/api/account/confirm-email-change", { token: clashTok }, { ip: "198.51.100.79" });
+  ok(r.status === 409, `a link for an address taken in the meantime is refused (${r.status})`);
+  r = await http("GET", "/account");
+  ok(r.status === 307 || r.status === 308, "the account page needs a session");
+  const accLogin = await post("/api/auth/login", { email: newAddr, password: PASSWORD }, { ip: "198.51.100.81" });
+  r = await http("GET", "/account", { cookie: accLogin.cookie });
+  ok(r.status === 200 && r.text.includes(newAddr.toLowerCase()), "the account page shows the current address");
 
   // ======================================================== challenge API
   section("Challenge submissions");
@@ -298,16 +441,54 @@ async function main() {
   ok(r.status === 400, `a bug answer missing its reason is a 400 (${r.status})`);
   r = await sub(bugId, "line 3");
   ok(r.status === 400, `a bug answer that is a string is a 400 (${r.status})`);
+  // Code is graded on the server, in a sandbox. The browser sends the code, never a result.
+  r = await sub(codeId, { passedTests: 5, totalTests: 5 });
+  ok(r.status === 400, `a claimed pass count is no longer accepted (${r.status})`);
   r = await sub(codeId, { passedTests: 99, totalTests: 3 });
-  ok(r.status === 400, `more passes than tests is a 400 (${r.status})`);
-  r = await sub(codeId, { passedTests: -1, totalTests: 5 });
-  ok(r.status === 400, `negative passes is a 400 (${r.status})`);
-  r = await sub(codeId, { passedTests: 1.5, totalTests: 5 });
-  ok(r.status === 400, `fractional passes is a 400 (${r.status})`);
-  r = await sub(codeId, { passedTests: 1, totalTests: 1 });
-  ok(r.status === 400, `the wrong number of total tests is a 400 (${r.status})`);
-  r = await sub(codeId, { passedTests: "5", totalTests: "5" });
-  ok(r.status === 400, `string numbers are a 400 (${r.status})`);
+  ok(r.status === 400, `an impossible pass count is a 400 (${r.status})`);
+  r = await sub(codeId, { code: 12345 });
+  ok(r.status === 400, `code that is not a string is a 400 (${r.status})`);
+  r = await sub(codeId, { code: "" });
+  ok(r.status === 400, `empty code is a 400 (${r.status})`);
+  r = await sub(codeId, { code: "x".repeat(20_001) });
+  ok(r.status === 400, `code over 20,000 characters is a 400 (${r.status})`);
+  r = await sub(codeId, "function f(){}");
+  ok(r.status === 400, `a bare string answer is a 400 (${r.status})`);
+  const challengeCode = loadCodeChallenge(track1.lessons[0].file, codeId);
+  const nTests = challengeCode.tests.length;
+  r = await sub(codeId, { code: challengeCode.starter });
+  ok(r.status === 200 && r.json.passed === false && r.json.score < nTests && r.json.maxScore === nTests, `the starter code is graded on the server and does not pass (${r.json.score}/${r.json.maxScore})`);
+  ok(Array.isArray(r.json.feedback?.outcomes) && r.json.feedback.outcomes.length === nTests, "the response says which tests passed");
+  r = await sub(codeId, { code: "function (((" });
+  ok(r.status === 200 && r.json.passed === false && !!r.json.feedback?.fatal, `a syntax error fails with a message (${r.json.feedback?.fatal})`);
+  r = await sub(codeId, { code: "const unrelated = 1;" });
+  ok(r.status === 200 && r.json.passed === false && /No function named/.test(r.json.feedback?.fatal ?? ""), "code that never defines the function fails with a clear message");
+  const loopStart = Date.now();
+  r = await sub(codeId, { code: `function ${challengeCode.functionName}() { while (true) {} }` });
+  ok(r.status === 200 && r.json.passed === false && /Timed out/.test(r.json.feedback?.fatal ?? "") && Date.now() - loopStart < 8000, `an infinite loop is stopped by the deadline (${Date.now() - loopStart} ms)`);
+  r = await sub(codeId, { code: `function ${challengeCode.functionName}() { const a = []; for (;;) a.push(new Array(1e5).fill(1)); }` });
+  ok(r.status === 200 && r.json.passed === false, `a memory bomb fails without hurting the server (${r.status})`);
+  r = await sub(codeId, { code: `function ${challengeCode.functionName}() { return ${challengeCode.functionName}(); }` });
+  ok(r.status === 200 && r.json.passed === false, `runaway recursion fails without hurting the server (${r.status})`);
+  r = await sub(codeId, { code: `function ${challengeCode.functionName}() { return typeof process === "undefined" && typeof require === "undefined" && typeof fetch === "undefined" ? "sandboxed" : "ESCAPED"; }` });
+  ok(r.status === 200 && r.json.passed === false, "the sandbox exposes no process, require or fetch");
+  const xpBeforeCode = (await db.collection("users").findOne({ _id: user._id })).xp ?? 0;
+  r = await sub(codeId, { code: challengeCode.solution });
+  ok(r.status === 200 && r.json.passed === true && r.json.score === nTests, `the reference solution passes on the server (${r.json.score}/${r.json.maxScore})`);
+  ok(r.json.xpAwarded === challengeCode.xp, `and earns the challenge's XP (${r.json.xpAwarded})`);
+  r = await sub(codeId, { code: challengeCode.solution });
+  ok(r.json.xpAwarded === 0, "the XP is not awarded a second time");
+  ok(((await db.collection("users").findOne({ _id: user._id })).xp ?? 0) - xpBeforeCode === challengeCode.xp, "the account gained the XP exactly once");
+  const cheater = await db.collection("submissions").findOne({ userId: user._id, challengeId: codeId, passed: true });
+  ok(cheater && typeof cheater.answer?.code === "string", "the submitted code is stored with the attempt");
+
+  // code runs cost CPU, so they have a tighter limit than other submissions
+  const cpuEmail = newEmail("cpu");
+  await signup(cpuEmail);
+  const cpuLogin = await post("/api/auth/login", { email: cpuEmail, password: PASSWORD }, { ip: "198.51.100.82" });
+  const cpuCodes = [];
+  for (let i = 0; i < 22; i++) cpuCodes.push((await post("/api/challenges/submit", { challengeId: codeId, answer: { code: challengeCode.starter } }, { cookie: cpuLogin.cookie })).status);
+  ok(cpuCodes.filter((c) => c === 200).length === 20 && cpuCodes.filter((c) => c === 429).length === 2, `code runs are limited to 20 per 5 minutes per account (${cpuCodes.filter((c) => c === 200).length} answered, ${cpuCodes.filter((c) => c === 429).length} limited)`);
   r = await sub("rag-gate", Array(10).fill(0));
   ok(r.status === 403, `a gate in a locked track is a 403 (${r.status})`);
   r = await sub(track1.gate, Array(track1.gateQuestions).fill(0));
@@ -364,6 +545,28 @@ async function main() {
     r = await http("GET", "/dashboard", { cookie: xk });
     ok(r.status === 200 && !r.text.includes("<img src=x onerror"), "the dashboard escapes the name");
   }
+  // Names in other alphabets come out of the real PDF route, drawn from fallback fonts, not as question marks
+  const unicodeNames = ["Алексей Иванов", "Ελένη Παπαδοπούλου", "Nguyễn Thị Hương", "Łukasz Żółć Şahin", "साई रघु किरण"];
+  const A = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+  let haveText = true;
+  try { execFileSync("pdftotext", ["-v"], { stdio: "ignore" }); } catch { haveText = false; }
+  for (const holder of unicodeNames) {
+    const b = randomBytes(12); let id = ""; for (const x of b) id += A[x % 32];
+    const uniId = `AIEM-${id.slice(0, 4)}-${id.slice(4, 8)}-${id.slice(8, 12)}`;
+    await db.collection("certificates").insertOne({ certId: uniId, userId: new mongoose.Types.ObjectId(), kind: "track", trackSlug: "rag-systems", title: "RAG Systems", finalScore: 90, holderName: holder, issuedAt: new Date(), createdAt: new Date(), updatedAt: new Date() });
+    createdCertIds.push(uniId);
+    const pdfRes = await fetch(`${BASE}/api/certificates/${uniId}/pdf`);
+    const bytes = Buffer.from(await pdfRes.arrayBuffer());
+    ok(pdfRes.status === 200 && bytes.subarray(0, 5).toString() === "%PDF-", `the PDF route builds a certificate for "${holder}" (${pdfRes.status}, ${bytes.length} bytes)`);
+    if (haveText && pdfRes.status === 200) {
+      const tmp = join(tmpdir(), `${uniId}.pdf`);
+      writeFileSync(tmp, bytes);
+      const text = execFileSync("pdftotext", [tmp, "-"], { encoding: "utf8" }).replace(/\s+/g, " ");
+      const letters = holder.replace(/\s/g, "");
+      ok(/[\u0900-\u097F]/.test(holder) ? /[\u0900-\u097F]/.test(text) : text.includes(holder) && !text.includes("?".repeat(2)), `"${holder}" is readable in the PDF and not replaced by question marks`);
+      void letters;
+    }
+  }
   for (const bad of ["AIEM-XXXX", "'; DROP TABLE certificates;--", "a".repeat(500), "%E2%98%83%E2%98%83", "..%2F..%2Fetc%2Fpasswd", "AIEM-ZZZZ-ZZZZ-ZZZZ", "%00"]) {
     r = await http("GET", `/verify/${bad}`);
     ok(r.status < 500, `/verify/${decodeURIComponent(bad).slice(0, 24)} does not crash (${r.status})`);
@@ -401,7 +604,7 @@ async function main() {
   ok(r.status === 400, `forgot with an operator object is a 400 (${r.status})`);
   r = await post("/api/auth/forgot", { email: rsEmail.toUpperCase().replace("RESEND.DEV", "resend.dev") }, { ip: "198.51.100.41" });
   ok(r.status === 200, `forgot ignores email case (${r.status})`);
-  ok((await db.collection("passwordresets").countDocuments({ userId: ruser._id })) >= 1, "a reset record was created for the upper-case form of the address");
+  ok(await until(async () => (await db.collection("passwordresets").countDocuments({ userId: ruser._id })) >= 1), "a reset record was created for the upper-case form of the address");
 
   // ======================================================== email verification edge cases
   section("Email verification edge cases");
@@ -466,6 +669,29 @@ async function main() {
   ];
   for (const [name, re] of want) ok(re.test(hs.get(name) || ""), `${name} header is set (${hs.get(name) ?? "missing"})`);
   if (HTTPS) ok(/max-age=/.test(hs.get("strict-transport-security") || ""), "Strict-Transport-Security is set over https");
+
+  // Content Security Policy: a fresh nonce on every request, and every inline script carries it
+  const policy1 = hs.get("content-security-policy") || "";
+  const nonce1 = /'nonce-([^']+)'/.exec(policy1)?.[1];
+  ok(!!nonce1, "pages send a Content-Security-Policy with a nonce");
+  ok(/script-src[^;]*'strict-dynamic'/.test(policy1), "scripts use strict-dynamic");
+  ok(/frame-ancestors 'none'/.test(policy1) && /object-src 'none'/.test(policy1) && /base-uri 'self'/.test(policy1) && /form-action 'self'/.test(policy1), "framing, plugins, a changed base URL and foreign form posts are all blocked");
+  if (/upgrade-insecure-requests/.test(policy1)) ok(!/script-src[^;]*('unsafe-eval'|'unsafe-inline')/.test(policy1), "production scripts allow no eval and no inline code");
+  else info("development policy (it allows eval for React's error stacks); production does not");
+  const second = (await http("GET", "/")).headers.get("content-security-policy") || "";
+  ok(/'nonce-([^']+)'/.exec(second)?.[1] !== nonce1, "the nonce is different on the next request");
+  for (const path of ["/", "/login", "/tracks", "/capstone", "/nope", `${lessonPages[0]}`]) {
+    const page = await http("GET", path);
+    const n = /'nonce-([^']+)'/.exec(page.headers.get("content-security-policy") || "")?.[1];
+    const bare = [...page.text.matchAll(/<script(?![^>]*\bsrc=)([^>]*)>/g)].filter((m) => !/nonce=/.test(m[1])).length;
+    const withNonce = [...page.text.matchAll(/<script[^>]*\bnonce="([^"]+)"/g)].map((m) => m[1]);
+    ok(!!n && bare === 0 && withNonce.length > 0 && withNonce.every((x) => x === n), `${path}: every script carries this request's nonce (${withNonce.length} scripts, ${bare} without one)`);
+  }
+  const worker = await http("GET", "/code-worker.js");
+  const wp = worker.headers.get("content-security-policy") || "";
+  ok(worker.status === 200 && /javascript/.test(worker.headers.get("content-type") || ""), "the code worker file is served as JavaScript");
+  ok(/connect-src 'none'/.test(wp) && /default-src 'none'/.test(wp) && /script-src 'unsafe-eval'/.test(wp), "the worker has its own policy: eval, but no network");
+  ok(!/blob:/.test(policy1.split(";").find((d) => d.trim().startsWith("worker-src")) ?? ""), "pages do not allow blob workers");
   ok(!hs.get("x-powered-by"), `the X-Powered-By header is not sent (${hs.get("x-powered-by") ?? "absent"})`);
 }
 
@@ -473,10 +699,11 @@ async function cleanup() {
   try {
     const users = await db.collection("users").find({ email: { $regex: `^delivered\\+edge-${run}-`, $options: "i" } }).toArray();
     for (const u of users) {
-      for (const c of ["submissions", "progresses", "certificates", "passwordresets", "emailverifications"]) await db.collection(c).deleteMany({ userId: u._id });
+      for (const c of ["submissions", "progresses", "certificates", "passwordresets", "emailverifications", "emailchanges"]) await db.collection(c).deleteMany({ userId: u._id });
       await db.collection("users").deleteOne({ _id: u._id });
     }
-    await db.collection("ratelimits").deleteMany({ key: { $regex: "^(login|signup|forgot|reset)-ip:" } });
+    if (createdCertIds.length) await db.collection("certificates").deleteMany({ certId: { $in: createdCertIds } });
+    await clearIpLimits();
     await db.collection("ratelimits").deleteMany({ key: { $regex: "^(login|forgot)-email:" } });
     console.log(`\ncleaned up ${users.length} test users`);
   } catch (err) {

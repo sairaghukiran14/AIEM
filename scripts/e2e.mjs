@@ -80,6 +80,16 @@ async function call(path, body, cookie) {
   return { status: res.status, body: json, cookie: setCookie, headers: res.headers };
 }
 
+
+async function until(fn, ms = 8000) {
+  const end = Date.now() + ms;
+  while (Date.now() < end) {
+    if (await fn()) return true;
+    await new Promise((r) => setTimeout(r, 150));
+  }
+  return false;
+}
+
 async function main() {
   await mongoose.connect(mongoUri());
   const db = mongoose.connection.db;
@@ -100,6 +110,14 @@ async function main() {
   ok(r.status === 200, "the right password signs in");
   const oldCookie = r.cookie;
   const user = await db.collection("users").findOne({ email });
+
+  // logging out ends that session for good, not just in the browser that clicked the button
+  const out = await call("/api/auth/login", { email, password: PASSWORD });
+  const probeSession = (c) => call("/api/challenges/submit", { challengeId: "no-such-challenge", answer: 1 }, c);
+  ok((await probeSession(out.cookie)).status === 404, "a fresh session reaches the API");
+  await call("/api/auth/logout", {}, out.cookie);
+  ok((await probeSession(out.cookie)).status === 401, "a copied session cookie stops working after logout");
+  ok((await probeSession(oldCookie)).status === 404, "logging out one session leaves the other one signed in");
 
   // ---------- email verification ----------
   const health = await (await fetch(BASE + "/api/health")).json();
@@ -188,13 +206,14 @@ async function main() {
   ok((await db.collection("passwordresets").countDocuments({})) >= 0, "(reset store reachable)");
   r = await call("/api/auth/forgot", { email });
   ok(r.status === 200 && r.body.ok === true, "forgot answers for a real address");
-  ok((await db.collection("passwordresets").countDocuments({ userId: user._id })) === 1, "a reset record exists for the user, and only one");
+  ok(await until(async () => (await db.collection("passwordresets").countDocuments({ userId: user._id })) === 1), "a reset record exists for the user, and only one");
   const stored = await db.collection("passwordresets").findOne({ userId: user._id });
   ok(!!stored && /^[0-9a-f]{64}$/.test(stored.tokenHash), "only a hash of the token is stored");
   await call("/api/auth/forgot", { email });
   await call("/api/auth/forgot", { email });
   r = await call("/api/auth/forgot", { email });
   ok(r.status === 429, "a 4th reset request for one address within the hour is limited (" + r.status + ")");
+  await new Promise((resolve) => setTimeout(resolve, 1500)); // the link is made after the response, so let it finish
   ok((await db.collection("passwordresets").countDocuments({ userId: user._id })) === 1, "requesting again replaces the old link instead of adding one");
 
   // the token itself only ever travels by email, so plant a known one directly

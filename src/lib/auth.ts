@@ -1,11 +1,14 @@
 import "server-only";
 
 import bcrypt from "bcryptjs";
+import { randomUUID } from "node:crypto";
 import { SignJWT, jwtVerify } from "jose";
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 
 import { connectDB } from "@/lib/db";
+import { sessionStatus } from "@/lib/session-core";
+import { RevokedSession } from "@/models/RevokedSession";
 import { User, type UserDoc } from "@/models/User";
 
 const COOKIE_NAME = "aiem_session";
@@ -27,9 +30,21 @@ export function verifyPassword(password: string, hash: string) {
   return bcrypt.compare(password, hash);
 }
 
-export async function createSession(userId: string) {
-  const token = await new SignJWT({ uid: userId })
+let dummyHash: string | null = null;
+
+/**
+ * Spends the same time as a real password check. Without it, an address with no account is answered immediately
+ * while a known one takes a full bcrypt comparison, and that difference shows which addresses are registered.
+ */
+export async function spendPasswordCheckTime(password: string): Promise<void> {
+  dummyHash ??= await bcrypt.hash("not-a-real-password", 10);
+  await bcrypt.compare(password, dummyHash);
+}
+
+export async function createSession(userId: string, sessionVersion = 0) {
+  const token = await new SignJWT({ uid: userId, sv: sessionVersion })
     .setProtectedHeader({ alg: "HS256" })
+    .setJti(randomUUID())
     .setIssuedAt()
     .setExpirationTime(`${MAX_AGE_SECONDS}s`)
     .sign(secretKey());
@@ -49,42 +64,78 @@ export async function destroySession() {
   store.delete(COOKIE_NAME);
 }
 
-async function readSession(): Promise<{ uid: string; iat: number } | null> {
+type Session = { uid: string; iat: number; exp: number; sv: number | undefined; jti: string | undefined };
+
+async function readSession(): Promise<Session | null> {
   const store = await cookies();
   const token = store.get(COOKIE_NAME)?.value;
   if (!token) return null;
 
   try {
     const { payload } = await jwtVerify(token, secretKey());
-    return typeof payload.uid === "string" ? { uid: payload.uid, iat: payload.iat ?? 0 } : null;
+    if (typeof payload.uid !== "string") return null;
+    return {
+      uid: payload.uid,
+      iat: payload.iat ?? 0,
+      exp: payload.exp ?? 0,
+      sv: typeof payload.sv === "number" ? payload.sv : undefined,
+      jti: typeof payload.jti === "string" ? payload.jti : undefined,
+    };
   } catch {
     return null;
   }
 }
 
-/** Returns the signed-in user's id, or null. Does not hit the database, so it cannot see a password reset. */
+/** Returns the signed-in user's id, or null. Does not hit the database, so it cannot see a sign-out or a password reset. */
 export async function getSessionUserId(): Promise<string | null> {
   return (await readSession())?.uid ?? null;
 }
 
-/** A session issued before the password last changed is no longer valid (one-second granularity). */
-function issuedBeforeChange(iat: number, changedAt: Date | null | undefined): boolean {
-  if (!changedAt) return false;
-  return iat * 1000 < Math.floor(changedAt.getTime() / 1000) * 1000;
+/** The user document if the session is still good: the account exists and the token was not signed out or outdated. */
+async function validUser(session: Session): Promise<UserDoc | null> {
+  await connectDB();
+  const [doc, revoked] = await Promise.all([
+    User.findById(session.uid).lean<UserDoc>(),
+    session.jti ? RevokedSession.exists({ jti: session.jti }) : Promise.resolve(null),
+  ]);
+  if (!doc) return null;
+  const status = sessionStatus({
+    tokenVersion: session.sv,
+    userVersion: doc.sessionVersion,
+    issuedAt: session.iat,
+    passwordChangedAt: doc.passwordChangedAt,
+    revoked: Boolean(revoked),
+  });
+  return status === "ok" ? doc : null;
 }
 
-/** Like getSessionUserId, but checks the database so a password reset signs out older sessions. */
+/** Like getSessionUserId, but checks the database, so a logout, a password reset or "sign out everywhere" take effect. */
 export async function getActiveSessionUserId(): Promise<string | null> {
   const session = await readSession();
   if (!session) return null;
   try {
-    await connectDB();
-    const doc = await User.findById(session.uid).select("passwordChangedAt").lean<{ passwordChangedAt?: Date | null }>();
-    if (!doc || issuedBeforeChange(session.iat, doc.passwordChangedAt)) return null;
-    return session.uid;
+    return (await validUser(session)) ? session.uid : null;
   } catch {
     return null;
   }
+}
+
+/** Signs out just this browser's token, so a copied cookie stops working too. Then removes the cookie. */
+export async function revokeCurrentSession() {
+  const session = await readSession();
+  if (session?.jti) {
+    try {
+      await connectDB();
+      await RevokedSession.updateOne(
+        { jti: session.jti },
+        { $setOnInsert: { expiresAt: new Date(session.exp * 1000) } },
+        { upsert: true }
+      );
+    } catch (err) {
+      console.error("[logout] could not record the sign-out:", err);
+    }
+  }
+  await destroySession();
 }
 
 export type SessionUser = {
@@ -121,10 +172,8 @@ export async function getCurrentUser(): Promise<SessionUser | null> {
   if (!session) return null;
 
   try {
-    await connectDB();
-    const doc = await User.findById(session.uid).lean<UserDoc>();
-    if (!doc || issuedBeforeChange(session.iat, doc.passwordChangedAt)) return null;
-    return toSessionUser(doc);
+    const doc = await validUser(session);
+    return doc ? toSessionUser(doc) : null;
   } catch {
     // A database outage should not blow up every page; treat it as signed out.
     return null;

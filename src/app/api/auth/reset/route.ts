@@ -1,4 +1,6 @@
 import { NextResponse } from "next/server";
+
+import { readJsonBody } from "@/lib/read-json";
 import { z } from "zod";
 
 import { hashPassword } from "@/lib/auth";
@@ -15,12 +17,9 @@ const Schema = z.object({
 });
 
 export async function POST(request: Request) {
-  let body: unknown;
-  try {
-    body = await request.json();
-  } catch {
-    return NextResponse.json({ error: "Invalid request body" }, { status: 400 });
-  }
+  const read = await readJsonBody(request, 4000);
+  if (!read.ok) return read.response;
+  const body: unknown = read.data;
   const parsed = Schema.safeParse(body);
   if (!parsed.success) {
     return NextResponse.json({ error: parsed.error.issues[0]?.message ?? "Invalid details" }, { status: 400 });
@@ -46,7 +45,7 @@ export async function POST(request: Request) {
 
     await User.updateOne(
       { _id: record.userId },
-      { $set: { passwordHash: await hashPassword(parsed.data.password), passwordChangedAt: new Date() } }
+      { $set: { passwordHash: await hashPassword(parsed.data.password), passwordChangedAt: new Date() }, $inc: { sessionVersion: 1 } }
     );
     await PasswordReset.deleteMany({ userId: record.userId });
 

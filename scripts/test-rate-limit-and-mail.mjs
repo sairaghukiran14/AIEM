@@ -10,13 +10,15 @@ const ts = require("typescript");
 const load = (p) => {
   const js = ts.transpileModule(readFileSync(join(root, p), "utf8"), { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 } }).outputText;
   const m = { exports: {} };
-  vm.runInNewContext(js, { module: m, exports: m.exports, require: () => ({}), Math, JSON, Map, Set });
+  vm.runInNewContext(js, { module: m, exports: m.exports, require: () => ({}), Math, JSON, Map, Set, Buffer, crypto: globalThis.crypto });
   return m.exports;
 };
 const rl = load("src/lib/rate-limit-core.ts");
 const mail = load("src/lib/mailer-core.ts");
 const { safeNext } = load("src/lib/safe-next.ts");
 const ev = load("src/lib/email-verification-core.ts");
+const sc = load("src/lib/session-core.ts");
+const csp = load("src/lib/csp.ts");
 
 let failed = 0;
 const eq = (name, got, want) => {
@@ -84,5 +86,43 @@ eq("the link lasts a day", ev.VERIFICATION_TOKEN_LIFETIME_MS, 86400000);
 const ve = mail.verifyEmail("Ada", "https://example.com/verify-email?token=abc");
 eq("verification email has the link and the name", ve.text.includes("https://example.com/verify-email?token=abc") && ve.text.includes("Hi Ada"), true);
 eq("verification email says what to do if not requested", /ignore this email/.test(ve.text), true);
+
+const base = { tokenVersion: 0, userVersion: 0, issuedAt: 1000, passwordChangedAt: null, revoked: false };
+eq("a fresh session is ok", sc.sessionStatus(base), "ok");
+eq("an old token with no version still matches version 0", sc.sessionStatus({ ...base, tokenVersion: undefined, userVersion: 0 }), "ok");
+eq("an old token with no version and a user with none is ok", sc.sessionStatus({ ...base, tokenVersion: undefined, userVersion: undefined }), "ok");
+eq("a signed-out token is refused", sc.sessionStatus({ ...base, revoked: true }), "signed-out");
+eq("a token from before a version bump is refused", sc.sessionStatus({ ...base, tokenVersion: 0, userVersion: 1 }), "version-changed");
+eq("a token from after a version bump is ok", sc.sessionStatus({ ...base, tokenVersion: 1, userVersion: 1 }), "ok");
+eq("an old no-version token fails once the version is bumped", sc.sessionStatus({ ...base, tokenVersion: undefined, userVersion: 1 }), "version-changed");
+eq("a token issued before the password changed is refused", sc.sessionStatus({ ...base, issuedAt: 1000, passwordChangedAt: new Date(2_000_000) }), "before-password-change");
+eq("a token issued after the password changed is ok", sc.sessionStatus({ ...base, issuedAt: 3000, passwordChangedAt: new Date(2_000_000) }), "ok");
+eq("a token issued in the same second as the change is ok", sc.sessionStatus({ ...base, issuedAt: 2000, passwordChangedAt: new Date(2_000_500) }), "ok");
+eq("revoked wins over everything else", sc.sessionStatus({ ...base, revoked: true, tokenVersion: 5, userVersion: 5 }), "signed-out");
+eq("proxy headers are not trusted by default", rl.trustsProxyHeaders({}), false);
+eq("they are trusted on Vercel", rl.trustsProxyHeaders({ VERCEL: "1" }), true);
+eq("they are trusted when the operator says a proxy sets them", rl.trustsProxyHeaders({ TRUST_PROXY_HEADERS: "1" }), true);
+eq("any other value does not trust them", rl.trustsProxyHeaders({ TRUST_PROXY_HEADERS: "yes" }), false);
+const nc = mail.emailChangeNotice("Ada", "ada.lovelace@example.com");
+eq("the notice to the old address hides most of the new one", nc.text.includes("ad**********@example.com") && !nc.text.includes("ada.lovelace@example.com"), true);
+const cc = mail.emailChangeConfirm("Ada", "new@example.com", "https://x/confirm-email?token=abc");
+eq("the confirmation carries the link and the address", cc.text.includes("https://x/confirm-email?token=abc") && cc.text.includes("new@example.com"), true);
+
+const prod = csp.buildCsp("abc123", false), dev = csp.buildCsp("abc123", true);
+const dir = (policy, name) => policy.split("; ").find((d) => d.startsWith(name + " ")) ?? "";
+eq("the script policy carries the nonce", dir(prod, "script-src").includes("'nonce-abc123'"), true);
+eq("scripts use strict-dynamic", dir(prod, "script-src").includes("'strict-dynamic'"), true);
+eq("production allows no eval and no inline scripts", !/unsafe-eval|unsafe-inline/.test(dir(prod, "script-src")), true);
+eq("development allows eval for React's error stacks", dir(dev, "script-src").includes("'unsafe-eval'"), true);
+eq("nothing may frame the site", dir(prod, "frame-ancestors"), "frame-ancestors 'none'");
+eq("plugins are blocked", dir(prod, "object-src"), "object-src 'none'");
+eq("forms may only post to this site", dir(prod, "form-action"), "form-action 'self'");
+eq("the base URL is fixed", dir(prod, "base-uri"), "base-uri 'self'");
+eq("workers must come from this site", dir(prod, "worker-src"), "worker-src 'self'");
+eq("production upgrades insecure requests", prod.includes("upgrade-insecure-requests") && !dev.includes("upgrade-insecure-requests"), true);
+eq("development allows the hot-reload socket, production does not", dir(dev, "connect-src").includes("ws:") && !dir(prod, "connect-src").includes("ws:"), true);
+eq("two nonces differ", csp.newNonce() !== csp.newNonce(), true);
+eq("a nonce is base64 text", /^[A-Za-z0-9+/=]+$/.test(csp.newNonce()), true);
+eq("the worker policy allows eval but no network", /script-src 'unsafe-eval'/.test(csp.WORKER_CSP) && /connect-src 'none'/.test(csp.WORKER_CSP) && /default-src 'none'/.test(csp.WORKER_CSP), true);
 
 if (failed) { console.log(failed + " failing"); process.exitCode = 1; } else console.log("all rate-limit and mail tests passed");

@@ -35,6 +35,15 @@ export function clientIp(headers: { get(name: string): string | null }): string 
   return headers.get("x-real-ip")?.trim() || "unknown";
 }
 
+/**
+ * Whether to believe the X-Forwarded-For header. Only a trusted proxy overwrites it: Vercel does, so it is trusted there
+ * automatically. Anywhere else it is a header the caller can set to anything, so it is only used if TRUST_PROXY_HEADERS=1
+ * says a proxy in front is rewriting it.
+ */
+export function trustsProxyHeaders(env: Record<string, string | undefined>): boolean {
+  return env.TRUST_PROXY_HEADERS === "1" || Boolean(env.VERCEL);
+}
+
 /** A short, readable wait for error messages. */
 export function waitText(seconds: number): string {
   if (seconds < 90) return `${seconds} seconds`;

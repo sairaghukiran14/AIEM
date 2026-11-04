@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 
 import { connectDB } from "@/lib/db";
+import { ipOf, limited, POLICIES } from "@/lib/rate-limit";
 import { isVerificationRequired } from "@/lib/email-verification";
 
 export const dynamic = "force-dynamic";
@@ -9,7 +10,14 @@ export const dynamic = "force-dynamic";
  * Reports whether the deployment is configured, without revealing any value.
  * Booleans only, so it is safe to leave public and useful for checking an environment.
  */
-export async function GET() {
+export async function GET(request: Request) {
+  // Each call pings the database, so keep one address from hammering it. (Skipped when no trusted proxy gives an address.)
+  try {
+    const blocked = await limited(request, [{ policy: POLICIES.healthIp, id: ipOf(request) }]);
+    if (blocked) return blocked;
+  } catch {
+    // if even the limiter cannot reach the database, the check below reports it
+  }
   let db = false;
   try {
     const conn = await connectDB();

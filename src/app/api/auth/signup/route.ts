@@ -1,4 +1,6 @@
 import { NextResponse } from "next/server";
+
+import { readJsonBody } from "@/lib/read-json";
 import { z } from "zod";
 
 import { createSession, hashPassword } from "@/lib/auth";
@@ -19,12 +21,9 @@ const SignupSchema = z.object({
 });
 
 export async function POST(request: Request) {
-  let body: unknown;
-  try {
-    body = await request.json();
-  } catch {
-    return NextResponse.json({ error: "Invalid request body" }, { status: 400 });
-  }
+  const read = await readJsonBody(request, 8000);
+  if (!read.ok) return read.response;
+  const body: unknown = read.data;
 
   const parsed = SignupSchema.safeParse(body);
   if (!parsed.success) {
@@ -65,7 +64,7 @@ export async function POST(request: Request) {
       throw err;
     }
 
-    await createSession(user._id.toString());
+    await createSession(user._id.toString(), 0);
 
     // Best effort: signing up must not fail because an email could not be sent. The dashboard offers a resend.
     try {

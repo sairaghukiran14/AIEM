@@ -1,5 +1,11 @@
+import { readFile } from "node:fs/promises";
+import { join } from "node:path";
+
+import * as fontkitModule from "@pdf-lib/fontkit";
 import { PDFDocument, StandardFonts, rgb, type PDFFont, type PDFPage } from "pdf-lib";
 import { create as createQr } from "qrcode";
+// The font engine's shaping code for Indic scripts such as Devanagari needs this helper to exist as a global.
+import "regenerator-runtime/runtime";
 
 import { formatIssueDate } from "@/lib/certificate-core";
 
@@ -28,28 +34,128 @@ const HAIR = rgb(0.83, 0.83, 0.83);
 const FAINT = rgb(0.9, 0.9, 0.9);
 const WHITE = rgb(1, 1, 1);
 
+/** Anything that can measure text. A PDFFont can, and so can a chain of fonts. */
+type Measurable = { widthOfTextAtSize(text: string, size: number): number };
+
+/**
+ * A font plus fallbacks. The built-in Times covers Latin-1; a name with other letters (Cyrillic, Greek, Vietnamese, extended
+ * Latin, Devanagari) draws those letters from a bundled Noto Serif font instead. Runs of characters from one font are drawn
+ * together, so the font's own letter joining still works within a run. Anything no font covers becomes "?".
+ */
+type Style = "italic" | "bold";
+type Fallback = { pkg: string; subset: string };
+
+const LATIN_EXT: Fallback = { pkg: "noto-serif", subset: "latin-ext" };
+const VIETNAMESE: Fallback = { pkg: "noto-serif", subset: "vietnamese" };
+const CYRILLIC: Fallback = { pkg: "noto-serif", subset: "cyrillic" };
+const CYRILLIC_EXT: Fallback = { pkg: "noto-serif", subset: "cyrillic-ext" };
+const GREEK: Fallback = { pkg: "noto-serif", subset: "greek" };
+const DEVANAGARI: Fallback = { pkg: "noto-serif-devanagari", subset: "devanagari" };
+
+/** Which bundled fonts could hold a character, most likely first. */
+function candidatesFor(cp: number): Fallback[] {
+  if (cp >= 0x370 && cp <= 0x3ff) return [GREEK];
+  if ((cp >= 0x400 && cp <= 0x52f) || (cp >= 0x1c80 && cp <= 0x1c8f) || (cp >= 0x2de0 && cp <= 0x2dff) || (cp >= 0xa640 && cp <= 0xa69f)) {
+    return [CYRILLIC, CYRILLIC_EXT];
+  }
+  if (cp >= 0x900 && cp <= 0x97f) return [DEVANAGARI];
+  return [LATIN_EXT, VIETNAMESE];
+}
+
+class TextChain implements Measurable {
+  private extras: { font: PDFFont; chars: Set<number> }[] = [];
+  private loaded = new Set<string>();
+  private baseChars: Set<number>;
+
+  constructor(
+    private base: PDFFont,
+    private style: Style
+  ) {
+    this.baseChars = new Set(base.getCharacterSet());
+  }
+
+  /** Embeds whichever fallback fonts the text needs. Done once, up front, because embedding is asynchronous. */
+  async prepare(doc: PDFDocument, text: string): Promise<void> {
+    for (const ch of Array.from(text.normalize("NFC"))) {
+      const cp = ch.codePointAt(0) ?? -1;
+      if (cp < 0 || /\s/.test(ch) || this.supports(cp)) continue;
+      for (const candidate of candidatesFor(cp)) {
+        const key = `${candidate.pkg}/${candidate.subset}`;
+        if (this.loaded.has(key)) continue;
+        this.loaded.add(key);
+        try {
+          const slope = this.style === "italic" && candidate.pkg === "noto-serif" ? "italic" : "normal";
+          const weight = this.style === "bold" ? 700 : 400;
+          const file = join(process.cwd(), "node_modules", "@fontsource", candidate.pkg, "files", `${candidate.pkg}-${candidate.subset}-${weight}-${slope}.woff`);
+          const font = await doc.embedFont(await readFile(file), { subset: true });
+          this.extras.push({ font, chars: new Set(font.getCharacterSet()) });
+        } catch {
+          // A font file that cannot be read just means those characters print as "?".
+        }
+        if (this.supports(cp)) break;
+      }
+    }
+  }
+
+  supports(cp: number): boolean {
+    return this.baseChars.has(cp) || this.extras.some((e) => e.chars.has(cp));
+  }
+
+  private fontFor(cp: number): PDFFont {
+    if (this.baseChars.has(cp)) return this.base;
+    return this.extras.find((e) => e.chars.has(cp))?.font ?? this.base;
+  }
+
+  private runs(text: string): { font: PDFFont; text: string }[] {
+    const out: { font: PDFFont; text: string }[] = [];
+    for (const ch of Array.from(text)) {
+      const font = this.fontFor(ch.codePointAt(0) ?? -1);
+      const last = out[out.length - 1];
+      if (last && last.font === font) last.text += ch;
+      else out.push({ font, text: ch });
+    }
+    return out;
+  }
+
+  widthOfTextAtSize(text: string, size: number): number {
+    return this.runs(text).reduce((sum, r) => sum + r.font.widthOfTextAtSize(r.text, size), 0);
+  }
+
+  draw(page: PDFPage, text: string, x: number, y: number, size: number, color: ReturnType<typeof rgb>) {
+    let cursor = x;
+    for (const run of this.runs(text)) {
+      page.drawText(run.text, { x: cursor, y, size, font: run.font, color });
+      cursor += run.font.widthOfTextAtSize(run.text, size);
+    }
+  }
+}
+
 /**
  * The built-in PDF fonts only cover Latin-1 text. Anything else would make
  * pdf-lib throw, so unsupported characters become "?" instead of failing the download.
  */
-function printable(font: PDFFont, text: string): string {
-  const supported = new Set(font.getCharacterSet());
+function printable(font: PDFFont | TextChain, text: string): string {
+  const supported = font instanceof TextChain ? null : new Set(font.getCharacterSet());
   return Array.from(text.normalize("NFC"))
-    .map((ch) => (supported.has(ch.codePointAt(0) ?? -1) ? ch : "?"))
+    .map((ch) => {
+      const cp = ch.codePointAt(0) ?? -1;
+      const ok = font instanceof TextChain ? font.supports(cp) : supported!.has(cp);
+      return ok ? ch : "?";
+    })
     .join("")
     .replace(/\s+/g, " ")
     .trim();
 }
 
 /** Shrinks the font size until the text fits `maxWidth`, never below `minSize`. */
-function fitSize(font: PDFFont, text: string, size: number, maxWidth: number, minSize = 10): number {
+function fitSize(font: Measurable, text: string, size: number, maxWidth: number, minSize = 10): number {
   let s = size;
   while (s > minSize && font.widthOfTextAtSize(text, s) > maxWidth) s -= 0.5;
   return s;
 }
 
 /** Cuts text with an ellipsis so it is guaranteed to fit. The last resort for absurdly long input. */
-function ellipsize(font: PDFFont, text: string, size: number, maxWidth: number): string {
+function ellipsize(font: Measurable, text: string, size: number, maxWidth: number): string {
   if (font.widthOfTextAtSize(text, size) <= maxWidth) return text;
   let t = text;
   while (t.length > 1 && font.widthOfTextAtSize(`${t}...`, size) > maxWidth) t = t.slice(0, -1);
@@ -60,7 +166,7 @@ function ellipsize(font: PDFFont, text: string, size: number, maxWidth: number):
  * Lays text out on one line if it fits at a reasonable size, otherwise on two
  * lines split near the middle at a word boundary, otherwise truncated. Never overflows.
  */
-function layoutName(font: PDFFont, text: string, maxWidth: number): { lines: string[]; size: number } {
+function layoutName(font: Measurable, text: string, maxWidth: number): { lines: string[]; size: number } {
   const one = fitSize(font, text, 46, maxWidth, 26);
   if (font.widthOfTextAtSize(text, one) <= maxWidth) return { lines: [text], size: one };
 
@@ -81,9 +187,11 @@ function layoutName(font: PDFFont, text: string, maxWidth: number): { lines: str
   return { lines, size };
 }
 
-function centered(page: PDFPage, text: string, y: number, size: number, font: PDFFont, color = INK) {
+function centered(page: PDFPage, text: string, y: number, size: number, font: PDFFont | TextChain, color = INK) {
   const width = font.widthOfTextAtSize(text, size);
-  page.drawText(text, { x: (W - width) / 2, y, size, font, color });
+  const x = (W - width) / 2;
+  if (font instanceof TextChain) font.draw(page, text, x, y, size, color);
+  else page.drawText(text, { x, y, size, font, color });
 }
 
 /** Centred text with extra space between letters (pdf-lib has no letter-spacing option). */
@@ -276,8 +384,15 @@ export async function buildCertificatePdf(input: CertificatePdfInput): Promise<U
   const serifItalic = await doc.embedFont(StandardFonts.TimesRomanItalic);
   const mono = await doc.embedFont(StandardFonts.CourierBold);
 
-  const name = printable(serifItalic, input.holderName) || "Learner";
-  const title = printable(serifBold, input.title);
+  // Embed any extra fonts the name or title needs (other alphabets), then measure and draw with the combined chains.
+  doc.registerFontkit((fontkitModule as unknown as { default?: Parameters<typeof doc.registerFontkit>[0] }).default ?? (fontkitModule as unknown as Parameters<typeof doc.registerFontkit>[0]));
+  const nameFont = new TextChain(serifItalic, "italic");
+  const titleFont = new TextChain(serifBold, "bold");
+  await nameFont.prepare(doc, input.holderName);
+  await titleFont.prepare(doc, input.title);
+
+  const name = printable(nameFont, input.holderName) || "Learner";
+  const title = printable(titleFont, input.title);
   const subtitle = printable(regular, input.subtitle);
   const verifyUrl = printable(regular, input.verifyUrl);
   const course = input.badge?.kind === "course";
@@ -316,22 +431,22 @@ export async function buildCertificatePdf(input: CertificatePdfInput): Promise<U
 
   centered(page, "This certifies that", 393, 15, serifItalic, MID);
 
-  const { lines: nameLines, size: nameSize } = layoutName(serifItalic, name, W - 220);
+  const { lines: nameLines, size: nameSize } = layoutName(nameFont, name, W - 220);
   let shift = 0;
   if (nameLines.length === 1) {
-    centered(page, nameLines[0], 348, nameSize, serifItalic);
+    centered(page, nameLines[0], 348, nameSize, nameFont);
   } else {
     shift = 14;
-    centered(page, nameLines[0], 358, nameSize, serifItalic);
-    centered(page, nameLines[1], 358 - nameSize - 4, nameSize, serifItalic);
+    centered(page, nameLines[0], 358, nameSize, nameFont);
+    centered(page, nameLines[1], 358 - nameSize - 4, nameSize, nameFont);
   }
   const ruleY = nameLines.length === 1 ? 332 : 358 - nameSize - 18;
   flourish(page, cx, ruleY, 230);
 
   centered(page, "has successfully completed", 302 - shift, 14, serifItalic, MID);
 
-  const titleSize = fitSize(serifBold, title, 28, W - 220, 14);
-  centered(page, ellipsize(serifBold, title, titleSize, W - 220), 264 - shift, titleSize, serifBold);
+  const titleSize = fitSize(titleFont, title, 28, W - 220, 14);
+  centered(page, ellipsize(titleFont, title, titleSize, W - 220), 264 - shift, titleSize, titleFont);
 
   if (subtitle) centered(page, subtitle, 240 - shift, 11.5, regular, MID);
   if (course) {

@@ -24,6 +24,14 @@ function load(rel) {
 const { buildCertificatePdf } = load("src/lib/certificate-pdf.ts");
 
 const cases = {
+  cyrillic: { holderName: "Алексей Иванов", title: "RAG Systems", subtitle: "Track 4 of 10 · gate score 90%", badge: { kind: "track", number: 4, level: "intermediate" } },
+  greek: { holderName: "Ελένη Παπαδοπούλου", title: "RAG Systems", subtitle: "Track 4 of 10 · gate score 90%", badge: { kind: "track", number: 4, level: "intermediate" } },
+  vietnamese: { holderName: "Nguyễn Thị Hương", title: "RAG Systems", subtitle: "Track 4 of 10 · gate score 90%", badge: { kind: "track", number: 4, level: "intermediate" } },
+  latinExt: { holderName: "Łukasz Żółć Şahin Ağaoğlu", title: "RAG Systems", subtitle: "Track 4 of 10 · gate score 90%", badge: { kind: "track", number: 4, level: "intermediate" } },
+  devanagari: { holderName: "साई रघु किरण", title: "RAG Systems", subtitle: "Track 4 of 10 · gate score 90%", badge: { kind: "track", number: 4, level: "intermediate" } },
+  mixed: { holderName: "Ada Лавлейс Ελένη Nguyễn", title: "Продвинутый RAG", subtitle: "Track 9 of 10 · gate score 100%", badge: { kind: "track", number: 9, level: "advanced" } },
+  telugu: { holderName: "సాయి రఘు", title: "RAG Systems", subtitle: "Track 4 of 10", badge: { kind: "track", number: 4, level: "intermediate" } },
+  cjk: { holderName: "李小龍 Bruce", title: "RAG Systems", subtitle: "Track 4 of 10", badge: { kind: "track", number: 4, level: "intermediate" } },
   track10: { holderName: "Ada Lovelace", title: "Serving, Self-Hosting & Multimodal AI", subtitle: "Track 10 of 10 · gate score 80%", badge: { kind: "track", number: 10, level: "advanced" } },
   track1: { holderName: "Ada Lovelace", title: "LLM Foundations", subtitle: "Track 1 of 10 · gate score 100%", badge: { kind: "track", number: 1, level: "beginner" } },
   courseBadge: { holderName: "Ada Lovelace", title: "AI Engineering Mastery: Complete Course", subtitle: "All 10 tracks and the capstone passed · capstone score 88%", badge: { kind: "course" } },
@@ -52,3 +60,32 @@ for (const [name, c] of Object.entries(cases)) {
   ok++;
 }
 console.log(ok + "/" + Object.keys(cases).length + " PDFs built and re-opened (written to " + outDir + ")");
+
+// Where poppler's pdftotext is installed, read the text back out and check the name really is in the file.
+import { execFileSync } from "node:child_process";
+let haveText = true;
+try { execFileSync("pdftotext", ["-v"], { stdio: "ignore" }); } catch { haveText = false; }
+if (!haveText) console.log("pdftotext not installed: skipping the read-back checks");
+else {
+  const textOf = (name) => execFileSync("pdftotext", [join(outDir, name + ".pdf"), "-"], { encoding: "utf8" });
+  const must = { cyrillic: "Алексей Иванов", greek: "Ελένη Παπαδοπούλου", vietnamese: "Nguyễn Thị Hương", latinExt: "Łukasz Żółć Şahin Ağaoğlu", normal: "Ada Lovelace", emoji: "Zoë" };
+  let bad = 0;
+  for (const [name, expected] of Object.entries(must)) {
+    const found = textOf(name).replace(/\s+/g, " ").includes(expected);
+    console.log((found ? "ok   " : "FAIL ") + `${name}: the name can be read back out of the PDF`);
+    if (!found) bad++;
+  }
+  const mixed = textOf("mixed").replace(/\s+/g, " ");
+  for (const part of ["Ada", "Лавлейс", "Ελένη", "Nguyễn", "Продвинутый RAG"]) {
+    const found = mixed.includes(part);
+    console.log((found ? "ok   " : "FAIL ") + `mixed alphabets: "${part}" is in the PDF`);
+    if (!found) bad++;
+  }
+  const dev = textOf("devanagari").replace(/\s+/g, " ");
+  console.log((/[\u0900-\u097F]/.test(dev) ? "ok   " : "FAIL ") + "devanagari: Devanagari letters are in the PDF");
+  if (!/[\u0900-\u097F]/.test(dev)) bad++;
+  const tel = textOf("telugu"), cjk = textOf("cjk");
+  console.log((!/[\u0C00-\u0C7F]/.test(tel) && /\?/.test(tel) ? "ok   " : "FAIL ") + "telugu: not supported, so it prints question marks rather than broken letters");
+  console.log((cjk.includes("Bruce") && /\?/.test(cjk) ? "ok   " : "FAIL ") + "cjk: the Latin part is kept and the rest prints as question marks");
+  if (bad) { console.log(bad + " failing"); process.exitCode = 1; }
+}

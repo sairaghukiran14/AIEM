@@ -1,4 +1,6 @@
 import { NextResponse } from "next/server";
+
+import { readJsonBody } from "@/lib/read-json";
 import { z } from "zod";
 
 import { connectDB } from "@/lib/db";
@@ -11,12 +13,9 @@ import { User } from "@/models/User";
 const Schema = z.object({ token: z.string().min(20, "This confirmation link is not valid").max(200) });
 
 export async function POST(request: Request) {
-  let body: unknown;
-  try {
-    body = await request.json();
-  } catch {
-    return NextResponse.json({ error: "Invalid request body" }, { status: 400 });
-  }
+  const read = await readJsonBody(request, 4000);
+  if (!read.ok) return read.response;
+  const body: unknown = read.data;
   const parsed = Schema.safeParse(body);
   if (!parsed.success) {
     return NextResponse.json({ error: parsed.error.issues[0]?.message ?? "Invalid details" }, { status: 400 });
