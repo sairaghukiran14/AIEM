@@ -9,10 +9,12 @@ import { ipOf, limited, POLICIES } from "@/lib/rate-limit";
 import { hashResetToken } from "@/lib/reset-token";
 import { EmailVerification } from "@/models/EmailVerification";
 import { User } from "@/models/User";
+import { emailFeaturesEnabled, emailOffResponse } from "@/lib/features";
 
 const Schema = z.object({ token: z.string().min(20, "This confirmation link is not valid").max(200) });
 
 export async function POST(request: Request) {
+  if (!emailFeaturesEnabled()) return emailOffResponse();
   const read = await readJsonBody(request, 4000);
   if (!read.ok) return read.response;
   const body: unknown = read.data;

@@ -72,12 +72,13 @@ eq("control characters are refused", safeNext("/a\u0009b") === "/dashboard" && s
 eq("an absurdly long path is refused", safeNext("/" + "a".repeat(600)), "/dashboard");
 eq("a custom fallback is used", safeNext("//x", "/tracks"), "/tracks");
 
-eq("verification is off when email cannot be sent", ev.verificationRequired({}), false);
-eq("verification turns on when email is configured", ev.verificationRequired({ RESEND_API_KEY: "re_x", MAIL_FROM: "a@b.c" }), true);
-eq("a key without a sender is not enough", ev.verificationRequired({ RESEND_API_KEY: "re_x" }), false);
-eq("=1 forces it on", ev.verificationRequired({ REQUIRE_EMAIL_VERIFICATION: "1" }), true);
-eq("=0 forces it off even with email configured", ev.verificationRequired({ REQUIRE_EMAIL_VERIFICATION: "0", RESEND_API_KEY: "re_x", MAIL_FROM: "a@b.c" }), false);
-eq("an unrelated value falls back to the mail check", ev.verificationRequired({ REQUIRE_EMAIL_VERIFICATION: "yes", RESEND_API_KEY: "re_x", MAIL_FROM: "a@b.c" }), true);
+eq("verification is off when email cannot be sent", ev.verificationRequired({ ENABLE_EMAIL_FEATURES: "1" }), false);
+eq("verification is off while email features are paused, even if mail is configured", ev.verificationRequired({ RESEND_API_KEY: "re_x", MAIL_FROM: "a@b.c", REQUIRE_EMAIL_VERIFICATION: "1" }), false);
+eq("verification turns on when email is configured", ev.verificationRequired({ ENABLE_EMAIL_FEATURES: "1", RESEND_API_KEY: "re_x", MAIL_FROM: "a@b.c" }), true);
+eq("a key without a sender is not enough", ev.verificationRequired({ ENABLE_EMAIL_FEATURES: "1", RESEND_API_KEY: "re_x" }), false);
+eq("=1 forces it on", ev.verificationRequired({ ENABLE_EMAIL_FEATURES: "1", REQUIRE_EMAIL_VERIFICATION: "1" }), true);
+eq("=0 forces it off even with email configured", ev.verificationRequired({ ENABLE_EMAIL_FEATURES: "1", REQUIRE_EMAIL_VERIFICATION: "0", RESEND_API_KEY: "re_x", MAIL_FROM: "a@b.c" }), false);
+eq("an unrelated value falls back to the mail check", ev.verificationRequired({ ENABLE_EMAIL_FEATURES: "1", REQUIRE_EMAIL_VERIFICATION: "yes", RESEND_API_KEY: "re_x", MAIL_FROM: "a@b.c" }), true);
 eq("not required: anyone may receive certificates", ev.canReceiveCertificates(false, null), true);
 eq("required and unverified: held", ev.canReceiveCertificates(true, null), false);
 eq("required and undefined: held", ev.canReceiveCertificates(true, undefined), false);

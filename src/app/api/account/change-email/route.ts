@@ -10,6 +10,7 @@ import { readJsonBody } from "@/lib/read-json";
 import { hashResetToken, newResetToken } from "@/lib/reset-token";
 import { EmailChange } from "@/models/EmailChange";
 import { User, type UserDoc } from "@/models/User";
+import { emailFeaturesEnabled, emailOffResponse } from "@/lib/features";
 
 const Schema = z.object({
   newEmail: z.email("Enter a valid email address").max(254, "Email address is too long"),
@@ -18,6 +19,7 @@ const Schema = z.object({
 const LIFETIME_MS = 60 * 60 * 1000;
 
 export async function POST(request: Request) {
+  if (!emailFeaturesEnabled()) return emailOffResponse();
   const userId = await getActiveSessionUserId();
   if (!userId) return NextResponse.json({ error: "Sign in to continue" }, { status: 401 });
 

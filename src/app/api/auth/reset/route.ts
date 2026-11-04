@@ -10,6 +10,7 @@ import { ipOf, limited, POLICIES } from "@/lib/rate-limit";
 import { hashResetToken } from "@/lib/reset-token";
 import { PasswordReset } from "@/models/PasswordReset";
 import { User } from "@/models/User";
+import { emailFeaturesEnabled, emailOffResponse } from "@/lib/features";
 
 const Schema = z.object({
   token: z.string().min(20, "This reset link is not valid").max(200),
@@ -17,6 +18,7 @@ const Schema = z.object({
 });
 
 export async function POST(request: Request) {
+  if (!emailFeaturesEnabled()) return emailOffResponse();
   const read = await readJsonBody(request, 4000);
   if (!read.ok) return read.response;
   const body: unknown = read.data;

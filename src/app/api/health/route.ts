@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 
 import { connectDB } from "@/lib/db";
 import { ipOf, limited, POLICIES } from "@/lib/rate-limit";
+import { emailFeaturesEnabled } from "@/lib/features";
 import { isVerificationRequired } from "@/lib/email-verification";
 
 export const dynamic = "force-dynamic";
@@ -30,6 +31,7 @@ export async function GET(request: Request) {
     ok: db && Boolean(process.env.AUTH_SECRET),
     database: db,
     authSecretSet: Boolean(process.env.AUTH_SECRET),
+    emailFeaturesEnabled: emailFeaturesEnabled(),
     mailConfigured: Boolean(process.env.RESEND_API_KEY && process.env.MAIL_FROM),
     siteUrlSet: Boolean(process.env.SITE_URL),
     emailVerificationRequired: isVerificationRequired(),

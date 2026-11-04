@@ -10,6 +10,7 @@ type Env = Record<string, string | undefined>;
  * can be sent, because requiring verification when nobody can receive the email would lock everyone out.
  */
 export function verificationRequired(env: Env): boolean {
+  if (env.ENABLE_EMAIL_FEATURES !== "1") return false;
   if (env.REQUIRE_EMAIL_VERIFICATION === "1") return true;
   if (env.REQUIRE_EMAIL_VERIFICATION === "0") return false;
   return Boolean(env.RESEND_API_KEY && env.MAIL_FROM);

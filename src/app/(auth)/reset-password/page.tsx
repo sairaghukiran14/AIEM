@@ -1,3 +1,5 @@
+import { notFound } from "next/navigation";
+import { emailFeaturesEnabled } from "@/lib/features";
 import Link from "next/link";
 
 import { ResetPasswordForm } from "@/components/PasswordForms";
@@ -9,6 +11,7 @@ export const metadata = {
 };
 
 export default async function ResetPasswordPage({ searchParams }: { searchParams: Promise<{ token?: string }> }) {
+  if (!emailFeaturesEnabled()) notFound();
   const { token } = await searchParams;
   if (!token) {
     return (

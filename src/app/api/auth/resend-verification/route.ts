@@ -6,8 +6,10 @@ import { sendVerificationEmail } from "@/lib/email-verification";
 import { mailFailure } from "@/lib/mailer";
 import { ipOf, limited, POLICIES } from "@/lib/rate-limit";
 import { User, type UserDoc } from "@/models/User";
+import { emailFeaturesEnabled, emailOffResponse } from "@/lib/features";
 
 export async function POST(request: Request) {
+  if (!emailFeaturesEnabled()) return emailOffResponse();
   const userId = await getActiveSessionUserId();
   if (!userId) return NextResponse.json({ error: "Sign in to continue" }, { status: 401 });
 

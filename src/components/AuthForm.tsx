@@ -8,9 +8,11 @@ import { Loader2 } from "lucide-react";
 type Props = {
   mode: "login" | "signup";
   next: string;
+  /** Show the "Forgot password?" link. Off while email features are paused. */
+  showForgot?: boolean;
 };
 
-export function AuthForm({ mode, next }: Props) {
+export function AuthForm({ mode, next, showForgot = false }: Props) {
   const router = useRouter();
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
@@ -100,7 +102,7 @@ export function AuthForm({ mode, next }: Props) {
             <label htmlFor="password" className="block text-sm font-medium">
               Password
             </label>
-            {!isSignup && (
+            {!isSignup && showForgot && (
               <Link href="/forgot-password" className="text-xs font-medium text-accent-soft hover:underline">
                 Forgot password?
               </Link>

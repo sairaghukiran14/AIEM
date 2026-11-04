@@ -9,10 +9,12 @@ import { hashed, ipOf, limited, POLICIES } from "@/lib/rate-limit";
 import { hashResetToken, newResetToken, RESET_TOKEN_LIFETIME_MS } from "@/lib/reset-token";
 import { PasswordReset } from "@/models/PasswordReset";
 import { User, type UserDoc } from "@/models/User";
+import { emailFeaturesEnabled, emailOffResponse } from "@/lib/features";
 
 const Schema = z.object({ email: z.email("Enter a valid email address").max(254, "Email address is too long") });
 
 export async function POST(request: Request) {
+  if (!emailFeaturesEnabled()) return emailOffResponse();
   const read = await readJsonBody(request, 4000);
   if (!read.ok) return read.response;
   const parsed = Schema.safeParse(read.data);

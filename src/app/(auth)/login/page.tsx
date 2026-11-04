@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 
 import { AuthForm } from "@/components/AuthForm";
 import { getCurrentUser } from "@/lib/auth";
+import { emailFeaturesEnabled } from "@/lib/features";
 import { safeNext } from "@/lib/safe-next";
 
 export const metadata = { title: "Sign in" };
@@ -16,6 +17,6 @@ export default async function LoginPage({
   if (await getCurrentUser()) redirect("/dashboard");
 
   const { next } = await searchParams;
-  return <AuthForm mode="login" next={safeNext(next)} />;
+  return <AuthForm mode="login" next={safeNext(next)} showForgot={emailFeaturesEnabled()} />;
 }
 

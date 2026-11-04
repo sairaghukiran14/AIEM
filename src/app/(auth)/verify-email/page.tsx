@@ -1,3 +1,5 @@
+import { notFound } from "next/navigation";
+import { emailFeaturesEnabled } from "@/lib/features";
 import Link from "next/link";
 
 import { VerifyEmailForm } from "@/components/VerifyEmail";
@@ -9,6 +11,7 @@ export const metadata = {
 };
 
 export default async function VerifyEmailPage({ searchParams }: { searchParams: Promise<{ token?: string }> }) {
+  if (!emailFeaturesEnabled()) notFound();
   const { token } = await searchParams;
   if (!token) {
     return (
