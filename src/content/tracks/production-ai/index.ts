@@ -12,7 +12,7 @@ const gate: Quiz = {
   kind: "gate",
   title: "Track Gate: Production AI",
   blurb:
-    "Ten questions drawn from the whole track, at interview difficulty. Score 70% to complete Production AI and unlock the capstone.",
+    "Ten questions drawn from the whole track, at interview difficulty. Score 70% to complete Production AI and unlock Advanced RAG & Building It.",
   passPercent: 70,
   xp: 200,
   questions: [

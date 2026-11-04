@@ -7,6 +7,7 @@ import { agentExtras } from "./tools-and-agents";
 import { evalExtras } from "./evals-and-observability";
 import { fineTuningExtras } from "./fine-tuning";
 import { productionExtras } from "./production-ai";
+import { advancedRagExtras } from "./advanced-rag";
 
 export const extras: LessonExtras = {
   ...foundationsExtras,
@@ -17,4 +18,5 @@ export const extras: LessonExtras = {
   ...evalExtras,
   ...fineTuningExtras,
   ...productionExtras,
+  ...advancedRagExtras,
 };

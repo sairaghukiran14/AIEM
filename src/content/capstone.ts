@@ -484,7 +484,7 @@ export const capstone: Quiz = {
   kind: "capstone",
   title: "Capstone: Ship the Northwind Support Copilot",
   blurb:
-    "Thirty decisions on one case study, spanning every track. Score 75% to complete the capstone. With all eight track gates passed, this earns your course certificate.",
+    "Thirty decisions on one case study, spanning every track. Score 75% to complete the capstone. With every track gate passed, this earns your course certificate.",
   passPercent: 75,
   xp: 400,
   questions,

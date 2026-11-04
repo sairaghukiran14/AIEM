@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 
-import { getChallenge, quizOrders, reasonOrder } from "@/content";
+import { getChallenge, quizOrders, reasonOrder, tracks } from "@/content";
 import type { Challenge, Quiz } from "@/content/types";
 import { getSessionUserId } from "@/lib/auth";
 import { connectDB } from "@/lib/db";
@@ -156,7 +156,7 @@ export async function POST(request: Request) {
     } else if (!isCapstoneUnlocked(before)) {
       // The capstone belongs to the course, not a track: it needs every gate.
       return NextResponse.json(
-        { error: "Pass all eight track gates before the capstone." },
+        { error: `Pass all ${tracks.length} track gates before the capstone.` },
         { status: 403 }
       );
     }
