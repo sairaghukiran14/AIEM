@@ -28,7 +28,10 @@ export type Block =
   | { type: "quote"; text: string; attribution?: string }
   | StepperBlock
   | CalculatorBlock
-  | SorterBlock;
+  | SorterBlock
+  | PredictBlock
+  | ExampleBlock
+  | CompareBlock;
 
 /** Step-through animation: move forward and back through states of a process. */
 export type StepperBlock = {
@@ -66,6 +69,39 @@ export type SorterBlock = {
   caption?: string;
   categories: string[];
   items: { text: string; answer: number; why: string }[];
+};
+
+/** Commit to an answer before seeing it: a short question with instant feedback. Practice only. */
+export type PredictBlock = {
+  type: "predict";
+  title: string;
+  prompt: string;
+  /** Optional snippet, prompt or log shown above the options. */
+  code?: string;
+  options: string[];
+  answer: number;
+  why: string;
+};
+
+/** A worked example: a problem, then its solution revealed one step at a time. */
+export type ExampleBlock = {
+  type: "example";
+  title: string;
+  problem: string;
+  steps: { do: string; result: string }[];
+  takeaway: string;
+};
+
+/** Two versions of the same thing; pick the better one, then see why. Practice only. */
+export type CompareBlock = {
+  type: "compare";
+  title: string;
+  prompt: string;
+  a: { label: string; text: string };
+  b: { label: string; text: string };
+  /** 0 for a, 1 for b. */
+  better: 0 | 1;
+  why: string;
 };
 
 /** Keys into the animated-visual registry (src/components/visuals). */

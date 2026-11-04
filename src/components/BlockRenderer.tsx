@@ -1,6 +1,9 @@
 import { AlertTriangle, Info, KeyRound, MessagesSquare } from "lucide-react";
 
 import { Calculator } from "@/components/interactive/Calculator";
+import { Compare } from "@/components/interactive/Compare";
+import { Example } from "@/components/interactive/Example";
+import { Predict } from "@/components/interactive/Predict";
 import { Sorter } from "@/components/interactive/Sorter";
 import { Stepper } from "@/components/interactive/Stepper";
 import { RichText } from "@/components/RichText";
@@ -100,6 +103,12 @@ export function BlockRenderer({ blocks }: { blocks: Block[] }) {
             return <Calculator key={i} block={block} />;
           case "sorter":
             return <Sorter key={i} block={block} />;
+          case "predict":
+            return <Predict key={i} block={block} />;
+          case "example":
+            return <Example key={i} block={block} />;
+          case "compare":
+            return <Compare key={i} block={block} />;
           case "table":
             return (
               <div key={i} className="my-5 overflow-x-auto rounded-xl border border-border-base">

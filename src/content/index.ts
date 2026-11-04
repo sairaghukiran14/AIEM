@@ -2,6 +2,7 @@ import type { Challenge, Lesson, Quiz, Track } from "@/content/types";
 import { balancedOrders } from "@/lib/shuffle";
 
 import { capstone } from "./capstone";
+import { extras } from "./extras";
 import { llmFoundations } from "./tracks/llm-foundations";
 import { promptEngineering } from "./tracks/prompt-engineering";
 import { embeddingsAndSearch } from "./tracks/embeddings-and-search";
@@ -11,9 +12,25 @@ import { evalsAndObservability } from "./tracks/evals-and-observability";
 import { fineTuning } from "./tracks/fine-tuning";
 import { productionAi } from "./tracks/production-ai";
 
-export const tracks: Track[] = [llmFoundations, promptEngineering, embeddingsAndSearch, ragSystems, toolsAndAgents, evalsAndObservability, fineTuning, productionAi].sort(
-  (a, b) => a.order - b.order
-);
+/** Appends the practice blocks in `extras` to each lesson's sections. */
+function withExtras(track: Track): Track {
+  return {
+    ...track,
+    lessons: track.lessons.map((lesson) => {
+      const more = extras[lesson.slug];
+      if (!more) return lesson;
+      return {
+        ...lesson,
+        concept: [...lesson.concept, ...(more.concept ?? [])],
+        underTheHood: [...lesson.underTheHood, ...(more.underTheHood ?? [])],
+      };
+    }),
+  };
+}
+
+export const tracks: Track[] = [llmFoundations, promptEngineering, embeddingsAndSearch, ragSystems, toolsAndAgents, evalsAndObservability, fineTuning, productionAi]
+  .map(withExtras)
+  .sort((a, b) => a.order - b.order);
 
 export const publishedTracks = tracks.filter((t) => t.published);
 

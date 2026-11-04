@@ -28,6 +28,7 @@ AIEM is a full-stack learning platform. A learner signs up, works through eight 
 | **8** tracks, beginner to advanced | **48** lessons |
 | **153** scored challenges (144 in lessons, 8 gates and the capstone) | **15** bespoke interactive visuals |
 | **30** step-throughs, **31** calculators, **32** sorting exercises | **9,680** XP available |
+| **48** predict-first questions, **40** worked examples, **8** compare-two exercises | Every lesson has at least two of these |
 
 Every lesson has the same five parts, built so that you can *explain* a topic under interview pressure, not just recognise it:
 
@@ -141,7 +142,7 @@ flowchart LR
 flowchart TB
     subgraph Browser
         RSC["Server-rendered pages<br/>(HTML + RSC payload)"]
-        CC["Client components<br/>visuals · steppers · calculators · runners"]
+        CC["Client components<br/>visuals · steppers · calculators · predict/example/compare · runners"]
         WW["Web Worker<br/>runs learner code, 2.5 s timeout"]
     end
 
@@ -267,6 +268,9 @@ classDiagram
         stepper
         calculator
         sorter
+        predict
+        example
+        compare
     }
     class Challenge {
         <<union>>
@@ -309,6 +313,7 @@ Type definitions live in [`src/content/types.ts`](src/content/types.ts).
 │   │   └── …                     BlockRenderer, CertificateCard, Logo, header
 │   ├── content/
 │   │   ├── types.ts              the content schema
+│   │   ├── extras/               predict, worked-example and compare blocks, per lesson slug
 │   │   ├── capstone.ts           the 30-question capstone exam
 │   │   ├── projects.ts           portfolio project briefs
 │   │   ├── index.ts              track registry, lookups, client-safe serialisation
@@ -421,7 +426,9 @@ export const lesson: Lesson = {
 };
 ```
 
-Then register it in the track's `index.ts`. To add a whole track, create `src/content/tracks/<slug>/` with a gate and cheatsheet, and add it to the list in `src/content/index.ts`.
+Then register it in the track's `index.ts`.
+
+**Practice blocks** (`predict`, `example`, `compare`) live apart from the lessons, in `src/content/extras/<track>.ts`, keyed by lesson slug. `concept` extras are appended to the end of the concept section and `underTheHood` extras to the end of the under-the-hood section, so an existing lesson file never needs editing. A `predict` is a question with instant feedback, an `example` is a worked problem revealed one step at a time, and a `compare` asks the learner to pick the better of two versions. All three are practice only. Option and side positions are shuffled with a seed so the correct one is not always in the same place. To add a whole track, create `src/content/tracks/<slug>/` with a gate and cheatsheet, and add it to the list in `src/content/index.ts`.
 
 Conventions that keep the course consistent:
 
@@ -440,7 +447,7 @@ Conventions that keep the course consistent:
 | Script | What it proves |
 |---|---|
 | `check-structure` | Challenge ids and lesson slugs are unique; every answer index and buggy-line number is in range; the capstone is well-formed (four options, explanation and scenario on every question); every project brief points at a real track |
-| `check-blocks` | Every calculator formula evaluates to a number with its defaults; every step-through highlight points at a real item; every sorter answer is a valid category; every visual key exists; every lesson has at least one interactive element, five interview questions and three challenges |
+| `check-blocks` | Every calculator formula evaluates to a number with its defaults; every step-through highlight points at a real item; every sorter answer is a valid category; every visual key exists; every lesson has practice blocks in `extras` with in-range answers and complete steps; every lesson has at least one interactive element, five interview questions and three challenges |
 | `test-solutions` | **Every code challenge's reference solution passes its own tests**, and its starter code does *not* (so no challenge is trivially solved). This caught several wrong expected values while the course was written |
 | `test-certificates` | Certificate issuing against an in-memory store with the same unique-index behaviour as MongoDB: idempotency, the course certificate requiring the capstone (and carrying its score), a simulated race, an ID collision, ID uniformity |
 | `test-certificate-pdf` | PDFs build and re-open from awkward input: non-Latin names, emoji, very long names, 200 characters with no spaces, an empty name |
