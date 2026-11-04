@@ -5,6 +5,8 @@ import { Check, Loader2, X } from "lucide-react";
 
 import type { ClientSpotTheBug } from "@/content";
 
+import { ResultSkeleton } from "@/components/Skeleton";
+
 import { ResultBanner } from "./ResultBanner";
 import { submitChallenge, type SubmitResult } from "./submit";
 
@@ -132,6 +134,7 @@ export function BugRunner({
         })}
       </fieldset>
 
+      {pending && <ResultSkeleton />}
       {result && <ResultBanner result={result} />}
       {fb && (
         <div className="space-y-3 rounded-xl border border-border-base bg-bg-raised p-4 text-sm">

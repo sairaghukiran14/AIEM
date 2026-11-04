@@ -5,6 +5,8 @@ import { CheckCircle2, Lightbulb, Loader2, Play, XCircle } from "lucide-react";
 
 import type { ClientCodeChallenge } from "@/content";
 
+import { ResultSkeleton } from "@/components/Skeleton";
+
 import { ResultBanner } from "./ResultBanner";
 import { runTests, type TestOutcome } from "./runCode";
 import { submitChallenge, type SubmitResult } from "./submit";
@@ -166,6 +168,7 @@ export function CodeRunner({
         </div>
       )}
 
+      {submitting && <ResultSkeleton />}
       {result && <ResultBanner result={result} />}
       {result && !result.passed && (
         <p role="alert" className="rounded-lg border border-border-strong bg-bg-raised px-3 py-2 text-sm text-text-muted">

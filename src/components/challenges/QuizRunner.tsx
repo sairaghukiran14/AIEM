@@ -5,6 +5,8 @@ import { Check, Loader2, X } from "lucide-react";
 
 import type { ClientQuiz } from "@/content";
 
+import { ResultSkeleton } from "@/components/Skeleton";
+
 import { ResultBanner } from "./ResultBanner";
 import { submitChallenge, type SubmitResult } from "./submit";
 
@@ -122,6 +124,7 @@ export function QuizRunner({
         );
       })}
 
+      {pending && <ResultSkeleton />}
       {result && <ResultBanner result={result} passPercent={challenge.passPercent} />}
       {error && (
         <p role="alert" className="text-sm text-red">
