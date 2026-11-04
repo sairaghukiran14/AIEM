@@ -43,7 +43,8 @@ export async function GET(request: Request, { params }: Params) {
     headers: {
       "Content-Type": "application/pdf",
       "Content-Disposition": `attachment; filename="${cert.certId}.pdf"`,
-      "Cache-Control": "public, max-age=3600",
+      // Short on purpose: a deleted or revoked certificate must stop being downloadable within a minute.
+      "Cache-Control": "public, max-age=0, s-maxage=60",
     },
   });
 }
