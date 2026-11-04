@@ -503,6 +503,9 @@ Being upfront about what this is and isn't:
 
 **Not built yet**
 
+- A hands-on build-along lesson for model serving (vLLM and a GPU); Track 10 covers serving as ideas and arithmetic.
+- Changing the email address on an account.
+- Server-side revocation of sessions on logout, and a Content-Security-Policy (both under limitations below).
 
 **Known limitations**
 
