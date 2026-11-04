@@ -83,7 +83,7 @@ async function call(path, body, cookie) {
 async function main() {
   await mongoose.connect(mongoUri());
   const db = mongoose.connection.db;
-  const PASSWORD = "E2e-Passw0rd-" + run;
+  const PASSWORD = "Pw-" + randomBytes(9).toString("hex");
 
   // ---------- accounts ----------
   const email = `delivered+e2e-${run}@resend.dev`; // Resend test recipient: nothing real is sent
@@ -94,21 +94,90 @@ async function main() {
   ok(r.status === 200 && r.cookie.includes("aiem_session"), "signup creates an account and a session");
   r = await call("/api/auth/signup", { name: "E2E Test", email, password: PASSWORD });
   ok(r.status === 409, "a duplicate signup is refused (" + r.status + ")");
-  r = await call("/api/auth/login", { email, password: "wrong-password-1" });
+  r = await call("/api/auth/login", { email, password: "Bad-" + randomBytes(6).toString("hex") });
   ok(r.status === 401, "a wrong password is refused");
   r = await call("/api/auth/login", { email, password: PASSWORD });
   ok(r.status === 200, "the right password signs in");
   const oldCookie = r.cookie;
   const user = await db.collection("users").findOne({ email });
 
+  // ---------- email verification ----------
+  const health = await (await fetch(BASE + "/api/health")).json();
+  const required = health.emailVerificationRequired === true;
+  console.log(`(email verification is ${required ? "REQUIRED" : "not required"} on this server)`);
+  const plant = async (userId, offset = 3600_000) => {
+    const t = randomBytes(32).toString("hex");
+    await db.collection("emailverifications").insertOne({ userId, tokenHash: sha(t), expiresAt: new Date(Date.now() + offset), createdAt: new Date() });
+    return t;
+  };
+  ok((await db.collection("emailverifications").countDocuments({ userId: user._id })) === 1, "signup created one verification record");
+  const rec = await db.collection("emailverifications").findOne({ userId: user._id });
+  ok(!!rec && /^[0-9a-f]{64}$/.test(rec.tokenHash), "only a hash of the verification token is stored");
+  ok(!user.emailVerifiedAt, "a new account starts unverified");
+  r = await call("/api/auth/verify-email", { token: "short" });
+  ok(r.status === 400, "a too-short verification token is a 400");
+  r = await call("/api/auth/verify-email", { token: randomBytes(32).toString("hex") });
+  ok(r.status === 400, "an unknown verification token is a 400");
+  r = await call("/api/auth/resend-verification", {});
+  ok(r.status === 401, "resending needs a session (" + r.status + ")");
+  r = await call("/api/auth/resend-verification", {}, oldCookie);
+  ok(r.status === 200 || r.status === 502, "resend answers 200, or 502 if email cannot be sent here (" + r.status + ")");
+  ok((await db.collection("emailverifications").countDocuments({ userId: user._id })) === 1, "resending replaces the old link instead of adding another");
+  const expiredV = await plant(user._id, -1000);
+  r = await call("/api/auth/verify-email", { token: expiredV });
+  ok(r.status === 400, "an expired verification token is refused");
+
+  // certificates are held until the address is verified, then released
+  const holdEmail = `delivered+e2e-hold-${run}@resend.dev`;
+  created.emails.push(holdEmail);
+  await call("/api/auth/signup", { name: "Hold Test", email: holdEmail, password: PASSWORD });
+  const holdUser = await db.collection("users").findOne({ email: holdEmail });
+  const holdLogin = await call("/api/auth/login", { email: holdEmail, password: PASSWORD });
+  const t1 = tracks[0];
+  for (const l of t1.lessons) {
+    for (const id of l.ids) {
+      await db.collection("submissions").insertOne({ userId: holdUser._id, challengeId: id, trackSlug: t1.slug, lessonSlug: l.slug, kind: id.endsWith("quiz") ? "quiz" : id.endsWith("bug") ? "spot-the-bug" : "code", score: 1, maxScore: 1, passed: true, attempt: 1, xpAwarded: 0, answer: null, createdAt: new Date(), updatedAt: new Date() });
+    }
+    await db.collection("progresses").updateOne({ userId: holdUser._id, lessonSlug: l.slug }, { $set: { trackSlug: t1.slug, status: "completed", completedAt: new Date() } }, { upsert: true });
+  }
+  const holdFirst = await call("/api/challenges/submit", { challengeId: t1.gate, answer: Array(t1.gateQuestions).fill(null) }, holdLogin.cookie);
+  const holdPass = await call("/api/challenges/submit", { challengeId: t1.gate, answer: holdFirst.body.feedback.results.map((x) => x.correctIndex) }, holdLogin.cookie);
+  ok(holdPass.body.passed === true, "an unverified account can still pass a gate");
+  if (required) {
+    ok(holdPass.body.certificatesHeld === true && (holdPass.body.certificates ?? []).length === 0, "the certificate is held while the address is unverified");
+    ok((await db.collection("certificates").countDocuments({ userId: holdUser._id })) === 0, "no certificate exists yet");
+    const cp = await fetch(BASE + "/certificates", { headers: { cookie: holdLogin.cookie } });
+    ok(cp.status === 200 && (await cp.text()).includes("Confirm your email address"), "the certificates page tells them to confirm");
+    ok((await db.collection("certificates").countDocuments({ userId: holdUser._id })) === 0, "opening the certificates page does not release it");
+  } else {
+    ok((holdPass.body.certificates ?? []).length === 1, "with verification off, the certificate is issued at once");
+  }
+  // GET on the link must not spend it, so a link scanner that only opens URLs cannot consume the token
+  const vt = await plant(holdUser._id);
+  const page = await fetch(`${BASE}/verify-email?token=${vt}`);
+  ok(page.status === 200 && (await db.collection("emailverifications").countDocuments({ tokenHash: sha(vt) })) === 1, "opening the confirmation page does not spend the link");
+  const racersV = await Promise.all(Array.from({ length: 4 }, () => call("/api/auth/verify-email", { token: vt })));
+  ok(racersV.filter((x) => x.status === 200).length === 1, `4 simultaneous uses of one link: exactly one succeeds (${racersV.map((x) => x.status).join(",")})`);
+  ok(!!(await db.collection("users").findOne({ _id: holdUser._id })).emailVerifiedAt, "the account is now verified");
+  ok((await db.collection("certificates").countDocuments({ userId: holdUser._id })) === 1, "the held certificate was released on verification");
+  r = await call("/api/auth/verify-email", { token: vt });
+  ok(r.status === 400, "the link cannot be used again");
+  r = await call("/api/auth/resend-verification", {}, holdLogin.cookie);
+  ok(r.status === 200 && r.body.alreadyVerified === true, "resending for a verified account says so");
+
+  // verify the main account so the course flow below can be issued certificates
+  const mainToken = await plant(user._id);
+  r = await call("/api/auth/verify-email", { token: mainToken });
+  ok(r.status === 200, "the main test account is verified");
+
   // ---------- rate limiting ----------
   const rlEmail = `delivered+e2e-rl-${run}@resend.dev`;
   created.emails.push(rlEmail);
   await call("/api/auth/signup", { name: "Rate Limit", email: rlEmail, password: PASSWORD });
   let statuses = [];
-  for (let i = 0; i < 8; i++) statuses.push((await call("/api/auth/login", { email: rlEmail, password: "nope-nope-1" })).status);
+  for (let i = 0; i < 8; i++) statuses.push((await call("/api/auth/login", { email: rlEmail, password: "Bad-" + randomBytes(6).toString("hex") })).status);
   ok(statuses.every((s) => s === 401), "the first 8 wrong logins are answered normally");
-  r = await call("/api/auth/login", { email: rlEmail, password: "nope-nope-1" });
+  r = await call("/api/auth/login", { email: rlEmail, password: "Bad-" + randomBytes(6).toString("hex") });
   ok(r.status === 429 && Number(r.headers.get("retry-after")) > 0, "the 9th attempt is rate limited with Retry-After (" + r.status + ")");
   r = await call("/api/auth/login", { email: rlEmail, password: PASSWORD });
   ok(r.status === 429, "even the right password is held back while the limit applies");
@@ -228,7 +297,7 @@ async function cleanup() {
     const db = mongoose.connection.db;
     const users = await db.collection("users").find({ email: { $in: created.emails } }).toArray();
     for (const u of users) {
-      for (const c of ["submissions", "progresses", "certificates", "passwordresets"]) await db.collection(c).deleteMany({ userId: u._id });
+      for (const c of ["submissions", "progresses", "certificates", "passwordresets", "emailverifications"]) await db.collection(c).deleteMany({ userId: u._id });
       await db.collection("users").deleteOne({ _id: u._id });
     }
     const keyParts = [...created.emails.map(emailHash), ...created.ipKeys].map((p) => p.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"));

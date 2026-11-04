@@ -42,7 +42,7 @@ let counter = 0;
 const newEmail = (label = "u") => `delivered+edge-${run}-${label}${++counter}@resend.dev`;
 const sha = (s) => createHash("sha256").update(s).digest("hex");
 const createdEmails = [];
-const PASSWORD = "Edge-Passw0rd-" + run;
+const PASSWORD = "Pw-" + randomBytes(9).toString("hex");
 
 let db;
 async function clearIpLimits() {
@@ -182,7 +182,7 @@ async function main() {
   await clearIpLimits();
   const burstEmail = newEmail("burst");
   await signup(burstEmail);
-  const burst = await Promise.all(Array.from({ length: 14 }, (_, i) => post("/api/auth/login", { email: burstEmail, password: "wrong-wrong-1" }, { ip: `198.51.100.${10 + i}` })));
+  const burst = await Promise.all(Array.from({ length: 14 }, (_, i) => post("/api/auth/login", { email: burstEmail, password: "Bad-" + randomBytes(6).toString("hex") }, { ip: `198.51.100.${10 + i}` })));
   const b401 = burst.filter((x) => x.status === 401).length, b429 = burst.filter((x) => x.status === 429).length;
   ok(b401 === 8 && b429 === 6, `14 simultaneous wrong logins: exactly 8 answered, 6 limited, even from 14 different addresses (${b401}/${b429})`);
 
@@ -303,6 +303,10 @@ async function main() {
   r = await post("/api/auth/login", { email: xssEmail, password: PASSWORD }, { ip: "198.51.100.32" });
   const xk = r.cookie;
   const xuser = await db.collection("users").findOne({ email: xssEmail });
+  const verifyToken = randomBytes(32).toString("hex");
+  await db.collection("emailverifications").insertOne({ userId: xuser._id, tokenHash: sha(verifyToken), expiresAt: new Date(Date.now() + 3600_000), createdAt: new Date() });
+  r = await post("/api/auth/verify-email", { token: verifyToken }, { ip: "198.51.100.33" });
+  ok(r.status === 200, "the hostile-name account confirms its email");
   for (const l of track1.lessons) {
     for (const id of l.ids) {
       await db.collection("submissions").insertOne({ userId: xuser._id, challengeId: id, trackSlug: "llm-foundations", lessonSlug: l.slug, kind: id.endsWith("quiz") ? "quiz" : id.endsWith("bug") ? "spot-the-bug" : "code", score: 1, maxScore: 1, passed: true, attempt: 1, xpAwarded: 0, answer: null, createdAt: new Date(), updatedAt: new Date() });
@@ -366,10 +370,36 @@ async function main() {
   ok(r.status === 200, `forgot ignores email case (${r.status})`);
   ok((await db.collection("passwordresets").countDocuments({ userId: ruser._id })) >= 1, "a reset record was created for the upper-case form of the address");
 
+  // ======================================================== email verification edge cases
+  section("Email verification edge cases");
+  await clearIpLimits();
+  r = await post("/api/auth/verify-email", { token: { $ne: "" } }, { ip: "198.51.100.50" });
+  ok(r.status === 400, `an operator object as the token is a 400 (${r.status})`);
+  r = await post("/api/auth/verify-email", { token: "x".repeat(500) }, { ip: "198.51.100.50" });
+  ok(r.status === 400, `an over-long token is a 400 (${r.status})`);
+  r = await post("/api/auth/verify-email", ["token"], { ip: "198.51.100.50" });
+  ok(r.status === 400, `an array body is a 400 (${r.status})`);
+  r = await http("POST", "/api/auth/verify-email", { raw: "{not json", ip: "198.51.100.50" });
+  ok(r.status === 400, `invalid JSON is a 400 (${r.status})`);
+  r = await post("/api/auth/resend-verification", {}, { ip: "198.51.100.50" });
+  ok(r.status === 401, `resend without a session is a 401 (${r.status})`);
+  r = await http("GET", "/api/auth/verify-email");
+  ok(r.status === 405, `GET on the confirm endpoint is a 405 (${r.status})`);
+  r = await http("GET", "/verify-email");
+  ok(r.status === 200 && /not valid/i.test(r.text), "the confirmation page without a token says the link is not valid");
+  const unv = newEmail("unv");
+  await signup(unv);
+  const unvLogin = await post("/api/auth/login", { email: unv, password: PASSWORD }, { ip: "198.51.100.51" });
+  const sends = [];
+  for (let i = 0; i < 4; i++) sends.push((await post("/api/auth/resend-verification", {}, { cookie: unvLogin.cookie, ip: `198.51.100.${60 + i}` })).status);
+  ok(sends.slice(0, 3).every((s) => s === 200 || s === 502) && sends[3] === 429, `resend is limited to 3 an hour per account, even from different addresses (${sends.join(",")})`);
+  const unvUser = await db.collection("users").findOne({ email: unv });
+  ok((await db.collection("emailverifications").countDocuments({ userId: unvUser._id })) === 1, "repeated resends leave exactly one valid link");
+
   // ======================================================== pages and content
   section("Pages, routes and answer keys");
   await clearIpLimits();
-  const pages = ["/", "/tracks", "/cheatsheets", "/capstone", "/assess", "/interview", "/verify", "/login", "/signup", "/forgot-password", "/reset-password", ...allTracks.map((t) => `/tracks/${t}`), ...allTracks.map((t) => `/cheatsheets/${t}`)];
+  const pages = ["/", "/tracks", "/cheatsheets", "/capstone", "/assess", "/interview", "/verify", "/login", "/signup", "/forgot-password", "/reset-password", "/verify-email", ...allTracks.map((t) => `/tracks/${t}`), ...allTracks.map((t) => `/cheatsheets/${t}`)];
   let leaks = [], badPages = [];
   for (const p of [...pages, ...lessonPages]) {
     const x = await http("GET", p);
@@ -410,7 +440,7 @@ async function cleanup() {
   try {
     const users = await db.collection("users").find({ email: { $regex: `^delivered\\+edge-${run}-`, $options: "i" } }).toArray();
     for (const u of users) {
-      for (const c of ["submissions", "progresses", "certificates", "passwordresets"]) await db.collection(c).deleteMany({ userId: u._id });
+      for (const c of ["submissions", "progresses", "certificates", "passwordresets", "emailverifications"]) await db.collection(c).deleteMany({ userId: u._id });
       await db.collection("users").deleteOne({ _id: u._id });
     }
     await db.collection("ratelimits").deleteMany({ key: { $regex: "^(login|signup|forgot|reset)-ip:" } });

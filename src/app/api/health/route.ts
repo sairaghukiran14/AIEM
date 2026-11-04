@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 
 import { connectDB } from "@/lib/db";
+import { isVerificationRequired } from "@/lib/email-verification";
 
 export const dynamic = "force-dynamic";
 
@@ -23,6 +24,7 @@ export async function GET() {
     authSecretSet: Boolean(process.env.AUTH_SECRET),
     mailConfigured: Boolean(process.env.RESEND_API_KEY && process.env.MAIL_FROM),
     siteUrlSet: Boolean(process.env.SITE_URL),
+    emailVerificationRequired: isVerificationRequired(),
   };
   return NextResponse.json(body, { status: body.ok ? 200 : 503, headers: { "Cache-Control": "no-store" } });
 }

@@ -51,6 +51,15 @@ export function ResultBanner({ result, passPercent }: { result: SubmitResult; pa
           <Trophy className="size-4" /> Capstone complete!
         </p>
       )}
+      {result.certificatesHeld && (
+        <p className="mt-2 flex flex-wrap items-center gap-x-2 text-sm font-semibold">
+          <Award className="size-4" />
+          Your certificate is ready to issue as soon as you confirm your email address.
+          <Link href="/certificates" className="font-medium underline">
+            See how
+          </Link>
+        </p>
+      )}
       {result.certificates?.map((c) => (
         <p key={c.certId} className="mt-2 flex flex-wrap items-center gap-x-2 text-sm font-semibold">
           <Award className="size-4" />

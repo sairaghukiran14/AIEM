@@ -16,6 +16,7 @@ const load = (p) => {
 const rl = load("src/lib/rate-limit-core.ts");
 const mail = load("src/lib/mailer-core.ts");
 const { safeNext } = load("src/lib/safe-next.ts");
+const ev = load("src/lib/email-verification-core.ts");
 
 let failed = 0;
 const eq = (name, got, want) => {
@@ -68,5 +69,20 @@ eq("a relative path without a slash is refused", safeNext("dashboard"), "/dashbo
 eq("control characters are refused", safeNext("/a\u0009b") === "/dashboard" && safeNext("/a\nb") === "/dashboard", true);
 eq("an absurdly long path is refused", safeNext("/" + "a".repeat(600)), "/dashboard");
 eq("a custom fallback is used", safeNext("//x", "/tracks"), "/tracks");
+
+eq("verification is off when email cannot be sent", ev.verificationRequired({}), false);
+eq("verification turns on when email is configured", ev.verificationRequired({ RESEND_API_KEY: "re_x", MAIL_FROM: "a@b.c" }), true);
+eq("a key without a sender is not enough", ev.verificationRequired({ RESEND_API_KEY: "re_x" }), false);
+eq("=1 forces it on", ev.verificationRequired({ REQUIRE_EMAIL_VERIFICATION: "1" }), true);
+eq("=0 forces it off even with email configured", ev.verificationRequired({ REQUIRE_EMAIL_VERIFICATION: "0", RESEND_API_KEY: "re_x", MAIL_FROM: "a@b.c" }), false);
+eq("an unrelated value falls back to the mail check", ev.verificationRequired({ REQUIRE_EMAIL_VERIFICATION: "yes", RESEND_API_KEY: "re_x", MAIL_FROM: "a@b.c" }), true);
+eq("not required: anyone may receive certificates", ev.canReceiveCertificates(false, null), true);
+eq("required and unverified: held", ev.canReceiveCertificates(true, null), false);
+eq("required and undefined: held", ev.canReceiveCertificates(true, undefined), false);
+eq("required and verified: allowed", ev.canReceiveCertificates(true, new Date()), true);
+eq("the link lasts a day", ev.VERIFICATION_TOKEN_LIFETIME_MS, 86400000);
+const ve = mail.verifyEmail("Ada", "https://example.com/verify-email?token=abc");
+eq("verification email has the link and the name", ve.text.includes("https://example.com/verify-email?token=abc") && ve.text.includes("Hi Ada"), true);
+eq("verification email says what to do if not requested", /ignore this email/.test(ve.text), true);
 
 if (failed) { console.log(failed + " failing"); process.exitCode = 1; } else console.log("all rate-limit and mail tests passed");

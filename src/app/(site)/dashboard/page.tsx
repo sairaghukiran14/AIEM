@@ -2,7 +2,9 @@ import Link from "next/link";
 import { Award, Flame, Trophy, Zap } from "lucide-react";
 
 import { courseTotals, publishedTracks, tracks, trackXp } from "@/content";
+import { VerifyEmailBanner } from "@/components/VerifyEmail";
 import { requireUser } from "@/lib/auth";
+import { isVerificationRequired } from "@/lib/email-verification";
 import { connectDB } from "@/lib/db";
 import { isTrackUnlocked, loadProgress, trackCompletion } from "@/lib/progress";
 import { Submission } from "@/models/Submission";
@@ -47,6 +49,8 @@ export default async function DashboardPage() {
 
   return (
     <div className="space-y-10">
+      {isVerificationRequired() && !user.emailVerified && <VerifyEmailBanner email={user.email} />}
+
       <header>
         <h1 className="text-3xl font-semibold tracking-tight">Welcome back, {user.name.split(" ")[0]}</h1>
         <p className="mt-1 text-text-muted">

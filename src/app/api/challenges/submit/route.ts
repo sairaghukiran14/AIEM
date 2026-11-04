@@ -5,7 +5,7 @@ import { getChallenge, quizOrders, reasonOrder, tracks } from "@/content";
 import type { Challenge, Quiz } from "@/content/types";
 import { getActiveSessionUserId } from "@/lib/auth";
 import { connectDB } from "@/lib/db";
-import { reconcileCertificates } from "@/lib/certificates";
+import { reconcileIfAllowed } from "@/lib/email-verification";
 import { awardXp, claimFirstPass, getUserProgress, grantBadge, isCapstoneUnlocked, isTrackUnlocked } from "@/lib/progress";
 import { Progress } from "@/models/Progress";
 import { Submission } from "@/models/Submission";
@@ -202,6 +202,7 @@ export async function POST(request: Request) {
     let trackCompleted = false;
     let capstoneCompleted = false;
     let certificates: { certId: string; kind: string; title: string }[] = [];
+    let certificatesHeld = false;
     const earnsCertificate = graded.passed && (challenge.kind === "gate" || challenge.kind === "capstone");
     if (earnsCertificate) {
       if (challenge.kind === "capstone") {
@@ -216,8 +217,9 @@ export async function POST(request: Request) {
       // error: log it, and the certificates page will issue it on its next visit.
       try {
         const holder = await User.findById(userId).select("name").lean<{ name: string }>();
-        const issued = await reconcileCertificates(userId, holder?.name ?? "Learner");
-        certificates = issued
+        const result = await reconcileIfAllowed(userId, holder?.name ?? "Learner");
+        certificatesHeld = result.held;
+        certificates = result.issued
           .filter((c) => c.created)
           .map(({ certId, kind, title }) => ({ certId, kind, title }));
       } catch (err) {
@@ -236,6 +238,7 @@ export async function POST(request: Request) {
       trackCompleted,
       capstoneCompleted,
       certificates,
+      certificatesHeld,
       feedback: graded.feedback,
     });
   } catch (err) {

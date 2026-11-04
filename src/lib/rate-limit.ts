@@ -15,6 +15,9 @@ export const POLICIES = {
   forgotIp: { name: "forgot-ip", limit: 5, windowSec: 60 * 60 },
   forgotEmail: { name: "forgot-email", limit: 3, windowSec: 60 * 60 },
   resetIp: { name: "reset-ip", limit: 10, windowSec: 60 * 60 },
+  verifyIp: { name: "verify-ip", limit: 20, windowSec: 60 * 60 },
+  resendUser: { name: "resend-user", limit: 3, windowSec: 60 * 60 },
+  resendIp: { name: "resend-ip", limit: 10, windowSec: 60 * 60 },
 } satisfies Record<string, Policy>;
 
 /** Identities are hashed so email addresses are not kept in the counters. */

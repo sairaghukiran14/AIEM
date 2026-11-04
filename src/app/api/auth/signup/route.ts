@@ -3,6 +3,7 @@ import { z } from "zod";
 
 import { createSession, hashPassword } from "@/lib/auth";
 import { connectDB } from "@/lib/db";
+import { sendVerificationEmail } from "@/lib/email-verification";
 import { passwordSchema } from "@/lib/password-rules";
 import { ipOf, limited, POLICIES } from "@/lib/rate-limit";
 import { User } from "@/models/User";
@@ -65,6 +66,13 @@ export async function POST(request: Request) {
     }
 
     await createSession(user._id.toString());
+
+    // Best effort: signing up must not fail because an email could not be sent. The dashboard offers a resend.
+    try {
+      await sendVerificationEmail(user, new URL(request.url).origin);
+    } catch (err) {
+      console.error("[signup] could not send the verification email:", err);
+    }
 
     return NextResponse.json({ ok: true });
   } catch (err) {

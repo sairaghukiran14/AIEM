@@ -10,6 +10,8 @@ export type SubmitResult = {
   capstoneCompleted?: boolean;
   /** Certificates issued by this submission (empty unless a gate was just passed). */
   certificates?: { certId: string; kind: string; title: string }[];
+  /** True when an earned certificate is waiting for the email address to be verified. */
+  certificatesHeld?: boolean;
   feedback: unknown;
 };
 

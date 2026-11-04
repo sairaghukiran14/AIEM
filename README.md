@@ -100,6 +100,7 @@ Because certificates are the product's promise, the scoring is designed so a lea
 - **The shuffle itself does not leak.** The browser only ever sees *display* positions. The server translates a submitted position back to the original option before grading. (An earlier design that sent original indices to the browser would have revealed the answer; it was removed.)
 - **Locks are enforced by the API, not just hidden in the UI.** Submitting to a locked track, or to the capstone before every track gate is passed, returns `403`.
 - **Certificates rest on the gates and the capstone**, which are graded on the server, rather than on code-challenge XP.
+- **Email is verified before certificates are issued.** Signup emails a link (valid 24 hours, usable once, stored only as a hash). Until it is opened, a learner can learn and pass challenges, but certificates, which are public and carry their name, are held and then issued automatically on confirmation. The confirmation page asks for a click rather than confirming on load, so a link scanner that merely opens URLs cannot spend the token. Enforcement is on exactly when email is configured, so a deployment without email cannot lock everyone out.
 - **Accounts are protected against guessing and floods.** Login, signup and password reset are rate limited per address and, for login and reset requests, per email. Counters live in MongoDB with a TTL index, because serverless instances do not share memory. Password reset tokens are random, stored only as a hash, valid for one hour, usable once, and a reset signs out every session issued before it.
 
 ### 4. The capstone and portfolio projects
@@ -214,6 +215,7 @@ erDiagram
     USER ||--o{ SUBMISSION : makes
     USER ||--o{ CERTIFICATE : earns
     USER ||--o{ PASSWORD_RESET : requests
+    USER ||--o{ EMAIL_VERIFICATION : confirms
 
     USER {
         string email UK
@@ -224,6 +226,7 @@ erDiagram
         string lastActiveDay
         list badges
         date passwordChangedAt
+        date emailVerifiedAt
     }
     PROGRESS {
         string lessonSlug "unique per user"
@@ -243,6 +246,10 @@ erDiagram
     PASSWORD_RESET {
         string tokenHash UK "only the hash is stored"
         date expiresAt "TTL, one hour"
+    }
+    EMAIL_VERIFICATION {
+        string tokenHash UK "only the hash is stored"
+        date expiresAt "TTL, 24 hours"
     }
     CERTIFICATE {
         string certId UK
@@ -397,6 +404,7 @@ npm run dev      # http://localhost:3000
 | `AUTH_SECRET` | yes | Signs session cookies. Use a long random value. |
 | `REVIEW_UNLOCK_ALL` | no | Set to `1` to open every track without passing gates, for reviewing content. **Ignored in production builds.** |
 | `DEV_ALLOWED_ORIGINS` | no | Extra hostnames allowed to load the dev server (comma separated). |
+| `REQUIRE_EMAIL_VERIFICATION` | no | `1` holds certificates until the person confirms their email, `0` turns it off. By default it is on exactly when email is configured. |
 | `SITE_URL` | no | Public origin used in certificate verification URLs and password-reset links. Defaults to the request's origin. |
 | `RESEND_API_KEY`, `MAIL_FROM` | for password reset in production | Send email through [Resend](https://resend.com). `MAIL_FROM` is the sender, such as `AIEM <no-reply@yourdomain.com>`. Without them, development logs the reset link to the server console, and production logs an error and sends nothing. |
 
@@ -477,7 +485,7 @@ Conventions that keep the course consistent:
 | `test-certificate-pdf` | PDFs build and re-open from awkward input: non-Latin names, emoji, very long names, 200 characters with no spaces, an empty name |
 | `report-answer-balance` | Reports where correct answers land after the server shuffle (informational) |
 
-**End-to-end (`npm run e2e`)** needs a built server and a database, so it is not part of `verify`, but CI runs it on every push against a MongoDB container. It creates throwaway users and checks: signup and login, the rate limit (the 9th wrong password for one address gets a 429), the full password-reset flow (only a token hash is stored, a link works once, an expired or unknown link is refused, and a session from before the reset is signed out), track and capstone locks, every gate with wrong and right answers, the course certificate, its public page and its PDF. It deletes everything it created.
+**End-to-end (`npm run e2e`)** needs a built server and a database, so it is not part of `verify`, but CI runs it on every push against a MongoDB container. It creates throwaway users and checks: signup and login, the rate limit (the 9th wrong password for one address gets a 429), the full password-reset flow (only a token hash is stored, a link works once, an expired or unknown link is refused, and a session from before the reset is signed out), email verification (a link works once, only a hash is stored, opening the page does not spend it, and a certificate is held until the address is confirmed and then released), track and capstone locks, every gate with wrong and right answers, the course certificate, its public page and its PDF. It deletes everything it created.
 
 **Edge cases (`npm run edge`)** targets what usually breaks in production, and is safe to point at a live site (`BASE_URL=https://... EXPECT_MAIL=1 npm run edge`) because every account uses Resend's test recipient and it deletes what it creates. It covers: malformed and hostile input (invalid JSON, operator objects instead of strings, 2 MB bodies, over-long names, emails and passwords, email case and unicode); concurrency (simultaneous signups, a burst of wrong logins from many addresses, simultaneous passing submissions, simultaneous use of one reset link); sessions (tampered, garbage and `alg: none` tokens, cookie flags, redirects, open-redirect attempts); challenge submissions with nonsense answers; script-like names rendered on every page and in the PDF; malformed certificate ids; that no page leaks an answer key or solution; locked content; 404s; and the security headers.
 
@@ -495,7 +503,6 @@ Being upfront about what this is and isn't:
 
 **Not built yet**
 
-- Email verification. Anyone can sign up with any address, so addresses are not proof of identity. It needs the same email provider that password reset uses.
 
 **Known limitations**
 

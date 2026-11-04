@@ -25,3 +25,15 @@ export function resetEmail(name: string, link: string): { subject: string; text:
       `If you did not ask for this, you can ignore this email and your password will stay as it is.\n`,
   };
 }
+
+export function verifyEmail(name: string, link: string): { subject: string; text: string } {
+  return {
+    subject: "Confirm your email for AIEM",
+    text:
+      `Hi ${name},\n\n` +
+      `Welcome to AIEM. Please confirm that this is your email address by opening this link within 24 hours:\n\n` +
+      `${link}\n\n` +
+      `Certificates you earn are issued once your address is confirmed.\n\n` +
+      `If you did not create an account, you can ignore this email.\n`,
+  };
+}

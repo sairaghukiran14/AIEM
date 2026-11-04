@@ -2,12 +2,13 @@ import Link from "next/link";
 import { Award, Download, ExternalLink, Lock } from "lucide-react";
 
 import { tracks } from "@/content";
+import { VerifyEmailBanner } from "@/components/VerifyEmail";
 import { requireUser } from "@/lib/auth";
+import { isVerificationRequired, reconcileIfAllowed } from "@/lib/email-verification";
 import { formatIssueDate } from "@/lib/certificate-core";
 import {
   COURSE_TITLE,
   listCertificates,
-  reconcileCertificates,
   type CertificateView,
 } from "@/lib/certificates";
 
@@ -34,7 +35,7 @@ export default async function CertificatesPage() {
   try {
     // Fill any gap first (idempotent): covers gates passed before certificates
     // existed, or an issue that failed at the moment of passing.
-    await reconcileCertificates(user.id, user.name);
+    await reconcileIfAllowed(user.id, user.name);
     certs = await listCertificates(user.id);
   } catch {
     unavailable = true;
@@ -46,6 +47,8 @@ export default async function CertificatesPage() {
 
   return (
     <div className="space-y-10">
+      {isVerificationRequired() && !user.emailVerified && <VerifyEmailBanner email={user.email} />}
+
       <header>
         <h1 className="text-3xl font-semibold tracking-tight">My certificates</h1>
         <p className="mt-1 max-w-2xl text-text-muted">

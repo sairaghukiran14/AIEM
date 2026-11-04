@@ -95,6 +95,7 @@ export type SessionUser = {
   streakCount: number;
   badges: { badgeId: string; label: string; earnedAt: Date }[];
   hasAssessment: boolean;
+  emailVerified: boolean;
 };
 
 function toSessionUser(doc: UserDoc): SessionUser {
@@ -110,6 +111,7 @@ function toSessionUser(doc: UserDoc): SessionUser {
       earnedAt: b.earnedAt as Date,
     })),
     hasAssessment: Boolean(doc.assessment),
+    emailVerified: Boolean(doc.emailVerifiedAt),
   };
 }
 
