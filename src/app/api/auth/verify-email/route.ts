@@ -42,7 +42,7 @@ export async function POST(request: Request) {
     const user = await User.findOneAndUpdate(
       { _id: record.userId },
       { $set: { emailVerifiedAt: new Date() } },
-      { new: true }
+      { returnDocument: "after" }
     ).lean<{ name: string } | null>();
     await EmailVerification.deleteMany({ userId: record.userId });
 

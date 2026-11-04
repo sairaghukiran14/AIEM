@@ -135,7 +135,7 @@ export async function awardXp(userId: string, xp: number): Promise<{ streak: num
         },
       },
     ],
-    { new: true, updatePipeline: true }
+    { returnDocument: "after", updatePipeline: true }
   ).lean<{ xp: number; streakCount: number } | null>();
   if (!user) return { streak: 0 };
 

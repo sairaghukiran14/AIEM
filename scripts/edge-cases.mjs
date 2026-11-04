@@ -220,6 +220,39 @@ async function main() {
   r = await probe(cookie);
   info(`an old cookie replayed after logout -> ${r.status} (sessions are stateless tokens; logout clears the browser's cookie but does not revoke the token server-side)`);
 
+  // A cookie that outlives its account must never cause a redirect loop between /login and /dashboard.
+  async function hops(path, cookieHeader, max = 8) {
+    let url = path, count = 0, status = 0;
+    while (count <= max) {
+      const res = await fetch(BASE + url, { redirect: "manual", headers: { cookie: cookieHeader } });
+      status = res.status;
+      const loc = res.headers.get("location");
+      if (status >= 300 && status < 400 && loc) { url = new URL(loc, BASE).pathname + new URL(loc, BASE).search; count++; } else break;
+    }
+    return { status, count, url };
+  }
+  const ghostEmail = newEmail("ghost");
+  await signup(ghostEmail);
+  const ghostLogin = await post("/api/auth/login", { email: ghostEmail, password: PASSWORD }, { ip: "198.51.100.34" });
+  await db.collection("users").deleteOne({ email: ghostEmail });
+  for (const path of ["/certificates", "/dashboard", "/login", "/signup"]) {
+    const h = await hops(path, ghostLogin.cookie);
+    ok(h.status === 200 && h.count <= 2, `a cookie for a deleted account does not loop on ${path} (ends ${h.status} after ${h.count} redirects)`);
+  }
+  // the same after a password reset signs older sessions out
+  const staleEmail = newEmail("stale");
+  await signup(staleEmail);
+  const staleLogin = await post("/api/auth/login", { email: staleEmail, password: PASSWORD }, { ip: "198.51.100.35" });
+  const staleUser = await db.collection("users").findOne({ email: staleEmail });
+  await new Promise((resolve) => setTimeout(resolve, 1100));
+  await db.collection("users").updateOne({ _id: staleUser._id }, { $set: { passwordChangedAt: new Date() } });
+  for (const path of ["/certificates", "/login"]) {
+    const h = await hops(path, staleLogin.cookie);
+    ok(h.status === 200 && h.count <= 2, `a session signed out by a password reset does not loop on ${path} (ends ${h.status} after ${h.count} redirects)`);
+  }
+  const live = await hops("/login", cookie);
+  ok(live.count === 1 && live.url === "/dashboard", `a valid session on /login still goes to /dashboard (${live.url})`);
+
   // open redirect
   for (const next of ["//evil.example", "https://evil.example", "/\\evil.example"]) {
     r = await http("GET", `/login?next=${encodeURIComponent(next)}`);

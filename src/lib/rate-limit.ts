@@ -35,11 +35,11 @@ export async function consume(policy: Policy, id: string, now = Date.now()): Pro
   const update = { $inc: { count: 1 }, $setOnInsert: { resetAt: new Date(windowEnd) } };
   let doc;
   try {
-    doc = await RateLimit.findOneAndUpdate({ key }, update, { upsert: true, new: true });
+    doc = await RateLimit.findOneAndUpdate({ key }, update, { upsert: true, returnDocument: "after" });
   } catch (err) {
     // Two requests can race to create the same counter. The loser retries and increments it.
     if ((err as { code?: number }).code !== 11000) throw err;
-    doc = await RateLimit.findOneAndUpdate({ key }, update, { new: true });
+    doc = await RateLimit.findOneAndUpdate({ key }, update, { returnDocument: "after" });
   }
   return decide(doc?.count ?? 1, policy.limit, windowEnd, now);
 }
