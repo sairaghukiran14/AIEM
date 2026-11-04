@@ -6,6 +6,7 @@ import { lesson as planningMemory } from "./lessons/03-planning-memory";
 import { lesson as toolDesignMcp } from "./lessons/04-tool-design-mcp";
 import { lesson as multiAgent } from "./lessons/05-multi-agent";
 import { lesson as guardrails } from "./lessons/06-guardrails";
+import { lesson as buildingAnMcpServer } from "./lessons/07-building-an-mcp-server";
 
 const gate: Quiz = {
   id: "ag-gate",
@@ -169,7 +170,7 @@ export const toolsAndAgents: Track = {
     "Approval, idempotency, sandboxing",
     "Evaluating agents",
   ],
-  lessons: [functionCalling, agentLoop, planningMemory, toolDesignMcp, multiAgent, guardrails],
+  lessons: [functionCalling, agentLoop, planningMemory, toolDesignMcp, multiAgent, guardrails, buildingAnMcpServer],
   gate,
   published: true,
   cheatsheet: [

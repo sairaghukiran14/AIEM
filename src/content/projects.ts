@@ -110,6 +110,36 @@ export const projects: ProjectBrief[] = [
     ],
   },
   {
+    id: "mcp-server",
+    title: "An MCP server for a real system, with safe tools",
+    tracks: ["tools-and-agents", "production-ai"],
+    summary:
+      "Wrap something you actually use (a notes folder, a database, a ticket tracker) in an MCP server, connect it to a real assistant, and make it safe to leave switched on.",
+    requirements: [
+      "Expose at least three tools, each with one job, a description written for a model, a strict input schema with types, bounds and a required list, and bounded or paginated output.",
+      "Implement it with the official SDK over stdio, with all logging on standard error, and show it working end to end in a real MCP-capable assistant.",
+      "Return tool failures as results with isError set and a message that says what to do next, and show a transcript where the model recovers from one.",
+      "Make at least one tool read-only and one with a side effect. Require approval for the side effect, accept an idempotency key, and enforce limits in your own code rather than relying on annotations.",
+      "Write tests that call the server without a model: list the tools, call each one, send bad arguments, and check the error shapes.",
+      "Add one resource or prompt, and explain in the README why it is one and not a tool.",
+    ],
+    stretch: [
+      "Serve the same tools over Streamable HTTP with token authentication and a per-tool scope check.",
+      "Write a test that feeds a tool result containing an injection attempt and shows the host treats it as data.",
+      "Record per-tool call counts, latency and error rate, and show them in a small report.",
+    ],
+    show: [
+      "A table of tools: name, purpose, arguments, read or write, and who approves it.",
+      "A real conversation transcript, including one failed call and the recovery.",
+      "The test output covering bad arguments and boundary values.",
+    ],
+    probes: [
+      "The client disconnects the moment your server starts. What do you check first?",
+      "Your tool marks itself read-only. Why should the host not rely on that?",
+      "How would you change this to serve a whole company, and what new risks appear?",
+    ],
+  },
+  {
     id: "eval-harness",
     title: "An evaluation harness for your own assistant",
     tracks: ["evals-and-observability", "rag-systems", "prompt-engineering"],

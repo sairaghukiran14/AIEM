@@ -196,4 +196,47 @@ export const agentExtras: LessonExtras = {
       },
     ],
   },
+
+  "building-an-mcp-server": {
+    concept: [
+      {
+        type: "predict",
+        title: "Predict: a debug line",
+        prompt: "You add `print(\"loaded 12 orders\")` to a local stdio MCP server to check it started. What happens when the assistant connects?",
+        options: [
+          "Nothing: the line is shown in the assistant's log",
+          "The model reads it as extra context",
+          "The client tries to parse the line as a JSON-RPC message, fails, and the session breaks",
+          "The server switches to HTTP",
+        ],
+        answer: 2,
+        why: "On stdio, standard output carries the protocol. Plain text there is not valid JSON-RPC. Write logs to standard error, which the host keeps separate.",
+      },
+    ],
+    underTheHood: [
+      {
+        type: "compare",
+        title: "Two ways to report a missing order",
+        prompt: "The model calls get_order_status with an id that does not exist. Which result is better?",
+        a: { label: "Result A", text: "isError: true\ntext: \"Error\"" },
+        b: { label: "Result B", text: "isError: true\ntext: \"No order A-9999. Order ids look like A-1042. Check the id with list_orders.\"" },
+        better: 1,
+        why: "The model reads the result text and can correct itself. Result B names the problem, shows a valid shape and points to a tool that helps. Result A forces a blind retry or a give-up.",
+      },
+      {
+        type: "example",
+        title: "Why a tool must bound its output",
+        problem:
+          "A list_orders tool returns every order. There are 8,000 orders at about 25 tokens each, and the model has a 200,000-token window with 20,000 already used. What happens, and what is the fix?",
+        steps: [
+          { do: "Work out the size of the unbounded result.", result: "8,000 x 25 = 200,000 tokens" },
+          { do: "Compare it with the space left.", result: "200,000 - 20,000 = 180,000 tokens free, so the result does not fit." },
+          { do: "Consider a result that does fit but is huge, such as 2,000 orders.", result: "50,000 tokens spent on one call, most of it irrelevant, and the model attends to it less reliably." },
+          { do: "Apply a limit in the tool itself.", result: "limit = max(1, min(limit, 25)) and a status filter, so at most 25 short rows come back with a way to page on." },
+        ],
+        takeaway:
+          "Bound output inside the server, whatever the model asked for. The context window is shared with everything else, and a tool that floods it makes every later step worse.",
+      },
+    ],
+  },
 };

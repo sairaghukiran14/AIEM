@@ -6,6 +6,7 @@ import { lesson as contextWindows } from "./lessons/03-context-windows";
 import { lesson as sampling } from "./lessons/04-sampling";
 import { lesson as attention } from "./lessons/05-attention";
 import { lesson as choosingAModel } from "./lessons/06-choosing-a-model";
+import { lesson as howModelsAreTrained } from "./lessons/07-how-models-are-trained";
 
 const gate: Quiz = {
   id: "fnd-gate",
@@ -177,8 +178,9 @@ export const llmFoundations: Track = {
     "Attention, masking, positional encoding",
     "Cost & latency modelling",
     "Model selection & evals",
+    "Pre-training vs post-training, loss, RLHF/DPO",
   ],
-  lessons: [whatLlmsDo, tokens, contextWindows, sampling, attention, choosingAModel],
+  lessons: [whatLlmsDo, tokens, contextWindows, sampling, attention, choosingAModel, howModelsAreTrained],
   gate,
   published: true,
   cheatsheet: [
@@ -319,6 +321,36 @@ export const llmFoundations: Track = {
           term: "Positional encoding",
           detail:
             "Attention is permutation-invariant, so position is injected — sinusoidal, learned, or RoPE (encodes relative distance).",
+        },
+      ],
+    },
+    {
+      heading: "Training",
+      items: [
+        {
+          term: "Pre-training",
+          detail:
+            "Next-token prediction over trillions of tokens. Gives knowledge and fluency; the result is a base model that just continues text.",
+        },
+        {
+          term: "Post-training",
+          detail:
+            "SFT on example conversations, then preference tuning (RLHF or DPO). Gives instruction-following, tone and refusals.",
+        },
+        {
+          term: "Loss",
+          detail:
+            "Cross-entropy: −ln p(correct token). Uniform guessing over a vocabulary of V tokens costs ln V. Inputs are tokens[:-1], targets tokens[1:].",
+        },
+        {
+          term: "Training memory",
+          detail:
+            "~16 bytes per parameter with Adam in mixed precision, against 2 to serve in 16-bit. A 7B model is ~112 GB to train, ~14 GB to serve.",
+        },
+        {
+          term: "Frozen at deployment",
+          detail:
+            "Weights never change during a chat. New facts come from the prompt (retrieval, tools), not from the conversation.",
         },
       ],
     },

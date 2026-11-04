@@ -189,4 +189,47 @@ export const foundationsExtras: LessonExtras = {
       },
     ],
   },
+
+  "how-models-are-trained": {
+    concept: [
+      {
+        type: "predict",
+        title: "Predict: teaching the model a fact",
+        prompt: "In a chat, you tell an assistant your company's refund policy and it uses it correctly for the rest of the conversation. You open a brand new chat. What happens?",
+        options: [
+          "It still knows the policy, because it learned it",
+          "It knows the policy only if the chat is on the same day",
+          "It does not know the policy: the earlier chat only put the text in the prompt, and the weights never changed",
+          "It knows the policy but forgets the customer's name",
+        ],
+        answer: 2,
+        why: "Training finished before you ever called the model. A conversation only fills the context window, and a new conversation starts with an empty one. Durable knowledge has to be stored and put back into the prompt, for example with retrieval.",
+      },
+    ],
+    underTheHood: [
+      {
+        type: "example",
+        title: "How surprised was the model?",
+        problem:
+          "After the text `The capital of France is`, the model gave `Paris` a probability of 0.80 and the correct next word really was `Paris`. On another example it gave the correct word only 0.05. What loss does each position contribute, and which is worse?",
+        steps: [
+          { do: "The loss for one position is minus the natural log of the probability given to the correct token.", result: "loss = -ln(p)" },
+          { do: "First position, p = 0.80.", result: "-ln(0.80) = 0.223" },
+          { do: "Second position, p = 0.05.", result: "-ln(0.05) = 2.996" },
+          { do: "Compare them.", result: "The second is about 13 times larger, so it produces a much stronger push on the weights." },
+        ],
+        takeaway:
+          "The loss punishes confident mistakes and thin probability on the right answer heavily. That is the whole training signal: nudge the weights so the real next token gets more probability.",
+      },
+      {
+        type: "compare",
+        title: "Two ways to add your product knowledge",
+        prompt: "Your assistant must answer questions about a product manual that changes every month. Which approach is better?",
+        a: { label: "Approach A", text: "Fine-tune the model on the manual every month so it learns the content." },
+        b: { label: "Approach B", text: "Store the manual in a search index and put the relevant passages in the prompt for each question." },
+        better: 1,
+        why: "Weights are frozen at deployment and training is slow, costly and a poor way to store facts that change. Putting the current passages in the prompt is cheap, instantly up to date, and lets you cite sources. Fine-tuning is better for changing style or format.",
+      },
+    ],
+  },
 };
