@@ -3,6 +3,7 @@ import { z } from "zod";
 
 import { createSession, hashPassword } from "@/lib/auth";
 import { connectDB } from "@/lib/db";
+import { ipOf, limited, POLICIES } from "@/lib/rate-limit";
 import { User } from "@/models/User";
 
 const SignupSchema = z.object({
@@ -34,6 +35,9 @@ export async function POST(request: Request) {
   const { name, email, password } = parsed.data;
 
   try {
+    const blocked = await limited(request, [{ policy: POLICIES.signupIp, id: ipOf(request) }]);
+    if (blocked) return blocked;
+
     await connectDB();
 
     const existing = await User.findOne({ email: email.toLowerCase() }).lean();

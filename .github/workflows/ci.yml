@@ -1,0 +1,46 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    services:
+      mongo:
+        image: mongo:7
+        ports: ["27017:27017"]
+
+    env:
+      MONGODB_URI: mongodb://localhost:27017/aiem-ci
+      AUTH_SECRET: ci-only-secret-not-used-anywhere-else-0123456789abcdef
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm run lint
+      - name: Content, solutions and unit tests
+        run: npm run verify
+
+      - name: Build
+        run: npm run build
+
+      - name: End-to-end checks against a real database
+        run: |
+          npm start -- -p 3000 > server.log 2>&1 &
+          for i in $(seq 1 30); do
+            curl -sf http://localhost:3000/login > /dev/null && break
+            sleep 1
+          done
+          npm run e2e || { echo "--- server log ---"; cat server.log; exit 1; }

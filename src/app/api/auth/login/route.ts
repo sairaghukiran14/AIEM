@@ -3,6 +3,7 @@ import { z } from "zod";
 
 import { createSession, verifyPassword } from "@/lib/auth";
 import { connectDB } from "@/lib/db";
+import { hashed, ipOf, limited, POLICIES } from "@/lib/rate-limit";
 import { User, type UserDoc } from "@/models/User";
 
 const LoginSchema = z.object({
@@ -29,6 +30,14 @@ export async function POST(request: Request) {
   const { email, password } = parsed.data;
 
   try {
+    // Before any password work: a per-address limit stops guessing at one account from many
+    // addresses, and a per-IP limit stops one source from trying many accounts.
+    const blocked = await limited(request, [
+      { policy: POLICIES.loginIp, id: ipOf(request) },
+      { policy: POLICIES.loginEmail, id: hashed(email) },
+    ]);
+    if (blocked) return blocked;
+
     await connectDB();
 
     const user = await User.findOne({ email: email.toLowerCase() }).lean<UserDoc>();

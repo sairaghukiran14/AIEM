@@ -38,6 +38,8 @@ const UserSchema = new Schema(
     },
     name: { type: String, required: true, trim: true },
     passwordHash: { type: String, required: true },
+    // Set when the password is reset. Sessions issued before it stop working.
+    passwordChangedAt: { type: Date, default: null },
     xp: { type: Number, default: 0 },
     streakCount: { type: Number, default: 0 },
     lastActiveDay: { type: String, default: "" }, // YYYY-MM-DD in UTC

@@ -100,6 +100,7 @@ Because certificates are the product's promise, the scoring is designed so a lea
 - **The shuffle itself does not leak.** The browser only ever sees *display* positions. The server translates a submitted position back to the original option before grading. (An earlier design that sent original indices to the browser would have revealed the answer; it was removed.)
 - **Locks are enforced by the API, not just hidden in the UI.** Submitting to a locked track, or to the capstone before every track gate is passed, returns `403`.
 - **Certificates rest on the gates and the capstone**, which are graded on the server, rather than on code-challenge XP.
+- **Accounts are protected against guessing and floods.** Login, signup and password reset are rate limited per address and, for login and reset requests, per email. Counters live in MongoDB with a TTL index, because serverless instances do not share memory. Password reset tokens are random, stored only as a hash, valid for one hour, usable once, and a reset signs out every session issued before it.
 
 ### 4. The capstone and portfolio projects
 
@@ -212,6 +213,7 @@ erDiagram
     USER ||--o{ PROGRESS : completes
     USER ||--o{ SUBMISSION : makes
     USER ||--o{ CERTIFICATE : earns
+    USER ||--o{ PASSWORD_RESET : requests
 
     USER {
         string email UK
@@ -221,6 +223,7 @@ erDiagram
         number streakCount
         string lastActiveDay
         list badges
+        date passwordChangedAt
     }
     PROGRESS {
         string lessonSlug "unique per user"
@@ -236,6 +239,10 @@ erDiagram
         bool passed
         number attempt
         number xpAwarded
+    }
+    PASSWORD_RESET {
+        string tokenHash UK "only the hash is stored"
+        date expiresAt "TTL, one hour"
     }
     CERTIFICATE {
         string certId UK
@@ -390,7 +397,8 @@ npm run dev      # http://localhost:3000
 | `AUTH_SECRET` | yes | Signs session cookies. Use a long random value. |
 | `REVIEW_UNLOCK_ALL` | no | Set to `1` to open every track without passing gates, for reviewing content. **Ignored in production builds.** |
 | `DEV_ALLOWED_ORIGINS` | no | Extra hostnames allowed to load the dev server (comma separated). |
-| `SITE_URL` | no | Public origin used in certificate verification URLs. Defaults to the request's origin. |
+| `SITE_URL` | no | Public origin used in certificate verification URLs and password-reset links. Defaults to the request's origin. |
+| `RESEND_API_KEY`, `MAIL_FROM` | for password reset in production | Send email through [Resend](https://resend.com). `MAIL_FROM` is the sender, such as `AIEM <no-reply@yourdomain.com>`. Without them, development logs the reset link to the server console, and production logs an error and sends nothing. |
 
 > **Dev-server gotcha.** Next.js blocks dev-server resources for any host except `localhost`. If you open the app by another hostname or a LAN address, the page renders but never becomes interactive and every button is dead. `127.0.0.1` and `192.168.x.x` are allowed by default; add anything else to `DEV_ALLOWED_ORIGINS`.
 
@@ -403,6 +411,7 @@ npm run dev      # http://localhost:3000
 | `npm run lint` | ESLint |
 | `npm run typecheck` | TypeScript, no emit |
 | `npm run verify` | Everything below, in one go |
+| `npm run e2e` | End-to-end checks against a running server and a real MongoDB (see below) |
 
 ---
 
@@ -462,9 +471,12 @@ Conventions that keep the course consistent:
 | `check-blocks` | Every calculator formula evaluates to a number with its defaults; every step-through highlight points at a real item; every sorter answer is a valid category; every visual key exists; every lesson has practice blocks in `extras` with in-range answers and complete steps; every lesson has at least one interactive element, five interview questions and three challenges |
 | `test-solutions` | **Every code challenge's reference solution passes its own tests**, and its starter code does *not* (so no challenge is trivially solved). This caught several wrong expected values while the course was written |
 | `test-interview-terms` | The key-term logic behind the mock interview: word stemming, which terms count as distinctive, and overlap percentages |
+| `test-rate-limit-and-mail` | The rate limiter's window and decision logic, how the client address is read, and the email request that would be sent |
 | `test-certificates` | Certificate issuing against an in-memory store with the same unique-index behaviour as MongoDB: idempotency, the course certificate requiring the capstone (and carrying its score), a simulated race, an ID collision, ID uniformity |
 | `test-certificate-pdf` | PDFs build and re-open from awkward input: non-Latin names, emoji, very long names, 200 characters with no spaces, an empty name |
 | `report-answer-balance` | Reports where correct answers land after the server shuffle (informational) |
+
+**End-to-end (`npm run e2e`)** needs a built server and a database, so it is not part of `verify`, but CI runs it on every push against a MongoDB container. It creates throwaway users and checks: signup and login, the rate limit (the 9th wrong password for one address gets a 429), the full password-reset flow (only a token hash is stored, a link works once, an expired or unknown link is refused, and a session from before the reset is signed out), track and capstone locks, every gate with wrong and right answers, the course certificate, its public page and its PDF. It deletes everything it created.
 
 Beyond these, every page was fetched and checked for a `200`, no lock screen, an interview section, and **no answer keys in the HTML**, and each interactive component was exercised with real clicks and drags in a browser.
 
@@ -478,11 +490,12 @@ Being upfront about what this is and isn't:
 
 **Not built yet**
 
-- Email verification, password reset, and login rate limiting or lockout.
-- Automated **integration tests** in the repository, and a CI pipeline. The full flow (signup, locks, all ten gates, the capstone, certificate issuing, verification and PDF) was run end to end against a real MongoDB with throwaway scripts during development, but those scripts are not committed, so nothing re-runs them automatically.
+- Email verification. Anyone can sign up with any address, so addresses are not proof of identity. It needs the same email provider that password reset uses.
 
 **Known limitations**
 
+- **Rate limits use fixed windows and are keyed by address.** The per-address login limit (8 wrong attempts in 15 minutes) also means someone can lock a known email out for 15 minutes by guessing wrong on purpose. That trade-off was chosen over allowing unlimited guessing. Limits depend on the platform's forwarded-address header, which Vercel sets.
+- **Password reset needs an email provider.** Without `RESEND_API_KEY` and `MAIL_FROM` in production, no email is sent. The form still shows its neutral message, so the failure is only visible in the server logs.
 - **Portfolio projects are not graded.** They are briefs with self-ticked checklists, saved only in the browser, and they do not affect the certificate.
 - **Code challenges are graded in the browser.** The server cannot safely run arbitrary learner code, so it records the pass count the client reports (after checking it is well-formed). XP from code challenges is therefore self-reported. Quizzes, bug hunts and gates are graded on the server and cannot be faked, which is why certificates depend on gates.
 - **Labs are simulated.** Visuals use hand-made or toy data (and say so); there are no live model calls.

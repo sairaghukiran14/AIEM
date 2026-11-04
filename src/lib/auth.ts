@@ -49,15 +49,39 @@ export async function destroySession() {
   store.delete(COOKIE_NAME);
 }
 
-/** Returns the signed-in user's id, or null. Does not hit the database. */
-export async function getSessionUserId(): Promise<string | null> {
+async function readSession(): Promise<{ uid: string; iat: number } | null> {
   const store = await cookies();
   const token = store.get(COOKIE_NAME)?.value;
   if (!token) return null;
 
   try {
     const { payload } = await jwtVerify(token, secretKey());
-    return typeof payload.uid === "string" ? payload.uid : null;
+    return typeof payload.uid === "string" ? { uid: payload.uid, iat: payload.iat ?? 0 } : null;
+  } catch {
+    return null;
+  }
+}
+
+/** Returns the signed-in user's id, or null. Does not hit the database, so it cannot see a password reset. */
+export async function getSessionUserId(): Promise<string | null> {
+  return (await readSession())?.uid ?? null;
+}
+
+/** A session issued before the password last changed is no longer valid (one-second granularity). */
+function issuedBeforeChange(iat: number, changedAt: Date | null | undefined): boolean {
+  if (!changedAt) return false;
+  return iat * 1000 < Math.floor(changedAt.getTime() / 1000) * 1000;
+}
+
+/** Like getSessionUserId, but checks the database so a password reset signs out older sessions. */
+export async function getActiveSessionUserId(): Promise<string | null> {
+  const session = await readSession();
+  if (!session) return null;
+  try {
+    await connectDB();
+    const doc = await User.findById(session.uid).select("passwordChangedAt").lean<{ passwordChangedAt?: Date | null }>();
+    if (!doc || issuedBeforeChange(session.iat, doc.passwordChangedAt)) return null;
+    return session.uid;
   } catch {
     return null;
   }
@@ -91,13 +115,14 @@ function toSessionUser(doc: UserDoc): SessionUser {
 
 /** Returns the signed-in user, or null. */
 export async function getCurrentUser(): Promise<SessionUser | null> {
-  const userId = await getSessionUserId();
-  if (!userId) return null;
+  const session = await readSession();
+  if (!session) return null;
 
   try {
     await connectDB();
-    const doc = await User.findById(userId).lean<UserDoc>();
-    return doc ? toSessionUser(doc) : null;
+    const doc = await User.findById(session.uid).lean<UserDoc>();
+    if (!doc || issuedBeforeChange(session.iat, doc.passwordChangedAt)) return null;
+    return toSessionUser(doc);
   } catch {
     // A database outage should not blow up every page; treat it as signed out.
     return null;

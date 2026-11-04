@@ -3,7 +3,7 @@ import { z } from "zod";
 
 import { getChallenge, quizOrders, reasonOrder, tracks } from "@/content";
 import type { Challenge, Quiz } from "@/content/types";
-import { getSessionUserId } from "@/lib/auth";
+import { getActiveSessionUserId } from "@/lib/auth";
 import { connectDB } from "@/lib/db";
 import { reconcileCertificates } from "@/lib/certificates";
 import { awardXp, getUserProgress, grantBadge, isCapstoneUnlocked, isTrackUnlocked } from "@/lib/progress";
@@ -106,7 +106,7 @@ function gradeCode(c: Extract<Challenge, { kind: "code" }>, answer: unknown): Gr
 }
 
 export async function POST(request: Request) {
-  const userId = await getSessionUserId();
+  const userId = await getActiveSessionUserId();
   if (!userId) return NextResponse.json({ error: "Sign in to submit" }, { status: 401 });
 
   let body: z.infer<typeof BodySchema>;
