@@ -9,7 +9,7 @@ import { hashResetToken, newResetToken, RESET_TOKEN_LIFETIME_MS } from "@/lib/re
 import { PasswordReset } from "@/models/PasswordReset";
 import { User, type UserDoc } from "@/models/User";
 
-const Schema = z.object({ email: z.email("Enter a valid email address") });
+const Schema = z.object({ email: z.email("Enter a valid email address").max(254, "Email address is too long") });
 
 export async function POST(request: Request) {
   let body: unknown;

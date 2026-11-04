@@ -7,7 +7,7 @@ import { hashed, ipOf, limited, POLICIES } from "@/lib/rate-limit";
 import { User, type UserDoc } from "@/models/User";
 
 const LoginSchema = z.object({
-  email: z.email("Enter a valid email address"),
+  email: z.email("Enter a valid email address").max(254, "Email address is too long"),
   password: z.string().min(1, "Enter your password"),
 });
 

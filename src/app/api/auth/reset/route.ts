@@ -3,6 +3,7 @@ import { z } from "zod";
 
 import { hashPassword } from "@/lib/auth";
 import { connectDB } from "@/lib/db";
+import { passwordSchema } from "@/lib/password-rules";
 import { ipOf, limited, POLICIES } from "@/lib/rate-limit";
 import { hashResetToken } from "@/lib/reset-token";
 import { PasswordReset } from "@/models/PasswordReset";
@@ -10,7 +11,7 @@ import { User } from "@/models/User";
 
 const Schema = z.object({
   token: z.string().min(20, "This reset link is not valid").max(200),
-  password: z.string().min(8, "Password must be at least 8 characters"),
+  password: passwordSchema,
 });
 
 export async function POST(request: Request) {

@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 
 import { AuthForm } from "@/components/AuthForm";
 import { getSessionUserId } from "@/lib/auth";
+import { safeNext } from "@/lib/safe-next";
 
 export const metadata = { title: "Sign in" };
 
@@ -16,8 +17,3 @@ export default async function LoginPage({
   return <AuthForm mode="login" next={safeNext(next)} />;
 }
 
-/** Only allow same-site redirects, so ?next= cannot send people off-site. */
-function safeNext(next?: string) {
-  if (!next || !next.startsWith("/") || next.startsWith("//")) return "/dashboard";
-  return next;
-}

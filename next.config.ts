@@ -5,7 +5,20 @@ const extraDevOrigins = (process.env.DEV_ALLOWED_ORIGINS ?? "")
   .map((host) => host.trim())
   .filter(Boolean);
 
+// Response headers for every page. A Content-Security-Policy is deliberately not set yet: Next.js and
+// React inject inline scripts, so a useful policy needs per-request nonces and careful testing.
+const securityHeaders = [
+  { key: "X-Content-Type-Options", value: "nosniff" },
+  { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
+  { key: "X-Frame-Options", value: "DENY" },
+  { key: "Permissions-Policy", value: "camera=(), microphone=(), geolocation=(), payment=()" },
+];
+
 const nextConfig: NextConfig = {
+  poweredByHeader: false,
+  async headers() {
+    return [{ source: "/:path*", headers: securityHeaders }];
+  },
   // Dev only. Next blocks dev-server requests from any host except localhost, and
   // when /_next/hmr is blocked the page renders but never hydrates, so buttons and
   // visuals do nothing. Allow the other ways of reaching this machine; add your own

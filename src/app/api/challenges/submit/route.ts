@@ -6,7 +6,7 @@ import type { Challenge, Quiz } from "@/content/types";
 import { getActiveSessionUserId } from "@/lib/auth";
 import { connectDB } from "@/lib/db";
 import { reconcileCertificates } from "@/lib/certificates";
-import { awardXp, getUserProgress, grantBadge, isCapstoneUnlocked, isTrackUnlocked } from "@/lib/progress";
+import { awardXp, claimFirstPass, getUserProgress, grantBadge, isCapstoneUnlocked, isTrackUnlocked } from "@/lib/progress";
 import { Progress } from "@/models/Progress";
 import { Submission } from "@/models/Submission";
 import { User } from "@/models/User";
@@ -161,8 +161,10 @@ export async function POST(request: Request) {
       );
     }
 
+    // Only one request can win the claim for a first pass, so a burst of identical passes awards XP once.
     const alreadyPassed = before.passed.has(challenge.id);
-    const xpAwarded = graded.passed && !alreadyPassed ? challenge.xp : 0;
+    const firstPass = graded.passed && !alreadyPassed && (await claimFirstPass(userId, challenge.id));
+    const xpAwarded = firstPass ? challenge.xp : 0;
     const attempt = (await Submission.countDocuments({ userId, challengeId: challenge.id })) + 1;
 
     await Submission.create({

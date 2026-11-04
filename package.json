@@ -15,6 +15,7 @@
     "verify:interview": "node scripts/test-interview-terms.mjs",
     "verify:certificates": "node scripts/test-certificates.mjs && node scripts/test-certificate-pdf.mjs",
     "e2e": "node scripts/e2e.mjs",
+    "edge": "node scripts/edge-cases.mjs",
     "verify": "npm run verify:structure && npm run verify:blocks && npm run verify:solutions && npm run verify:interview && npm run verify:accounts && npm run verify:certificates"
   },
   "dependencies": {

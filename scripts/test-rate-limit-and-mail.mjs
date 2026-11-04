@@ -15,6 +15,7 @@ const load = (p) => {
 };
 const rl = load("src/lib/rate-limit-core.ts");
 const mail = load("src/lib/mailer-core.ts");
+const { safeNext } = load("src/lib/safe-next.ts");
 
 let failed = 0;
 const eq = (name, got, want) => {
@@ -53,5 +54,19 @@ eq("resend body", JSON.parse(req.init.body), { from: "AIEM <no-reply@example.com
 const email = mail.resetEmail("Ada", "https://example.com/reset-password?token=abc");
 eq("reset email carries the link and the name", email.text.includes("https://example.com/reset-password?token=abc") && email.text.includes("Hi Ada"), true);
 eq("reset email says what to do if not requested", /ignore this email/.test(email.text), true);
+
+eq("a normal path is kept", safeNext("/learn/llm-foundations/what-llms-do"), "/learn/llm-foundations/what-llms-do");
+eq("a path with a query is kept", safeNext("/tracks?x=1"), "/tracks?x=1");
+eq("nothing falls back", safeNext(undefined), "/dashboard");
+eq("an empty string falls back", safeNext(""), "/dashboard");
+eq("an absolute URL is refused", safeNext("https://evil.example"), "/dashboard");
+eq("a protocol-relative URL is refused", safeNext("//evil.example"), "/dashboard");
+eq("a backslash host is refused", safeNext("/\\evil.example"), "/dashboard");
+eq("a backslash anywhere is refused", safeNext("/ok\\x"), "/dashboard");
+eq("a javascript: URL is refused", safeNext("javascript:alert(1)"), "/dashboard");
+eq("a relative path without a slash is refused", safeNext("dashboard"), "/dashboard");
+eq("control characters are refused", safeNext("/a\u0009b") === "/dashboard" && safeNext("/a\nb") === "/dashboard", true);
+eq("an absurdly long path is refused", safeNext("/" + "a".repeat(600)), "/dashboard");
+eq("a custom fallback is used", safeNext("//x", "/tracks"), "/tracks");
 
 if (failed) { console.log(failed + " failing"); process.exitCode = 1; } else console.log("all rate-limit and mail tests passed");

@@ -4,6 +4,7 @@ import { allGatesPassed } from "@/lib/certificate-core";
 import { connectDB } from "@/lib/db";
 import { getTrack, tracks } from "@/content";
 import { Progress } from "@/models/Progress";
+import { ChallengeCompletion } from "@/models/ChallengeCompletion";
 import { Submission } from "@/models/Submission";
 import { User } from "@/models/User";
 
@@ -107,29 +108,55 @@ const todayUtc = () => new Date().toISOString().slice(0, 10);
 const yesterdayUtc = () => new Date(Date.now() - 86_400_000).toISOString().slice(0, 10);
 
 /** Adds XP, advances the streak once per UTC day, and grants any newly earned badges. */
+/**
+ * Adds XP and updates the streak in ONE atomic update. Reading the user, changing it and saving it back
+ * would let two requests at the same moment overwrite each other and lose XP.
+ */
 export async function awardXp(userId: string, xp: number): Promise<{ streak: number }> {
   await connectDB();
-  const user = await User.findById(userId);
+  const today = todayUtc();
+  const yesterday = yesterdayUtc();
+
+  // An aggregation-pipeline update: every expression reads the document as it was before this update.
+  const user = await User.findOneAndUpdate(
+    { _id: userId },
+    [
+      {
+        $set: {
+          streakCount: {
+            $cond: [
+              { $eq: ["$lastActiveDay", today] },
+              { $ifNull: ["$streakCount", 0] },
+              { $cond: [{ $eq: ["$lastActiveDay", yesterday] }, { $add: [{ $ifNull: ["$streakCount", 0] }, 1] }, 1] },
+            ],
+          },
+          lastActiveDay: today,
+          xp: { $add: [{ $ifNull: ["$xp", 0] }, xp] },
+        },
+      },
+    ],
+    { new: true, updatePipeline: true }
+  ).lean<{ xp: number; streakCount: number } | null>();
   if (!user) return { streak: 0 };
 
-  const today = todayUtc();
-  if (user.lastActiveDay !== today) {
-    user.streakCount = user.lastActiveDay === yesterdayUtc() ? user.streakCount + 1 : 1;
-    user.lastActiveDay = today;
-  }
-  user.xp += xp;
+  // Badges use a conditional push, which is atomic and ignores repeats.
+  if (user.streakCount >= 3) await grantBadge(userId, "streak-3", "3-day streak");
+  if (user.streakCount >= 7) await grantBadge(userId, "streak-7", "7-day streak");
+  if (user.xp >= 500) await grantBadge(userId, "xp-500", "500 XP");
 
-  const has = (id: string) => user.badges.some((b) => b.badgeId === id);
-  const grant = (badgeId: string, label: string) => {
-    if (!has(badgeId)) user.badges.push({ badgeId, label, earnedAt: new Date() });
-  };
-
-  if (user.streakCount >= 3) grant("streak-3", "3-day streak");
-  if (user.streakCount >= 7) grant("streak-7", "7-day streak");
-  if (user.xp >= 500) grant("xp-500", "500 XP");
-
-  await user.save();
   return { streak: user.streakCount };
+}
+
+/** True for exactly one caller per (user, challenge): the one that records the first pass. */
+export async function claimFirstPass(userId: string, challengeId: string): Promise<boolean> {
+  await connectDB();
+  try {
+    await ChallengeCompletion.create({ userId, challengeId });
+    return true;
+  } catch (err) {
+    if ((err as { code?: number }).code === 11000) return false;
+    throw err;
+  }
 }
 
 export async function grantBadge(userId: string, badgeId: string, label: string) {

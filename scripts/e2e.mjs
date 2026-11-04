@@ -86,7 +86,7 @@ async function main() {
   const PASSWORD = "E2e-Passw0rd-" + run;
 
   // ---------- accounts ----------
-  const email = `e2e-${run}@example.com`;
+  const email = `delivered+e2e-${run}@resend.dev`; // Resend test recipient: nothing real is sent
   created.emails.push(email);
   let r = await call("/api/auth/signup", { name: "E2E Test", email, password: "short" });
   ok(r.status === 400, "signup rejects a short password (" + r.status + ")");
@@ -102,7 +102,7 @@ async function main() {
   const user = await db.collection("users").findOne({ email });
 
   // ---------- rate limiting ----------
-  const rlEmail = `e2e-rl-${run}@example.com`;
+  const rlEmail = `delivered+e2e-rl-${run}@resend.dev`;
   created.emails.push(rlEmail);
   await call("/api/auth/signup", { name: "Rate Limit", email: rlEmail, password: PASSWORD });
   let statuses = [];
@@ -114,7 +114,7 @@ async function main() {
   ok(r.status === 429, "even the right password is held back while the limit applies");
 
   // ---------- password reset ----------
-  r = await call("/api/auth/forgot", { email: `nobody-${run}@example.com` });
+  r = await call("/api/auth/forgot", { email: `delivered+e2e-nobody-${run}@resend.dev` });
   ok(r.status === 200 && r.body.ok === true, "forgot answers the same for an unknown address");
   ok((await db.collection("passwordresets").countDocuments({})) >= 0, "(reset store reachable)");
   r = await call("/api/auth/forgot", { email });

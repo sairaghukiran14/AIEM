@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 
 import { AuthForm } from "@/components/AuthForm";
 import { getSessionUserId } from "@/lib/auth";
+import { safeNext } from "@/lib/safe-next";
 
 export const metadata = { title: "Create account" };
 
@@ -14,9 +15,4 @@ export default async function SignupPage({
 
   const { next } = await searchParams;
   return <AuthForm mode="signup" next={safeNext(next)} />;
-}
-
-function safeNext(next?: string) {
-  if (!next || !next.startsWith("/") || next.startsWith("//")) return "/dashboard";
-  return next;
 }
