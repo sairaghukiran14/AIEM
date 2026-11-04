@@ -51,6 +51,8 @@ for (const track of readdirSync(join(root, "src/content/tracks"))) {
       if (b.type === "calculator") { calcs++; interactive++;
         const keys = b.inputs.map(i => i.key); const vals = b.inputs.map(i => i.value);
         b.inputs.forEach(i => { if (i.value < i.min || i.value > i.max) bad(where, `calculator "${b.title}" default of ${i.key} outside its range`); });
+        // A slider snaps to min + n*step, so a default off that grid is shown differently from the value used.
+        b.inputs.forEach(i => { const n = (i.value - i.min) / i.step; if (Math.abs(n - Math.round(n)) > 1e-9) bad(where, `calculator "${b.title}" default of ${i.key} (${i.value}) is not on its step grid (min ${i.min}, step ${i.step})`); if ((i.max - i.min) / i.step % 1 > 1e-9 && ((i.max - i.min) / i.step) % 1 < 1 - 1e-9) bad(where, `calculator "${b.title}" max of ${i.key} is not reachable from min by step`); });
         b.outputs.forEach(o => {
           try {
             const v = new Function(...keys, "Math", `"use strict"; return (${o.formula});`)(...vals, Math);

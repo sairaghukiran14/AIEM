@@ -52,7 +52,7 @@ export function ModelPicker() {
       <div className="grid gap-4 sm:grid-cols-2">
         {slider("Max time-to-answer", maxLatency, setMaxLatency, 200, 3000, 100, (n) => `${n} ms`)}
         {slider("Max relative cost", maxCost, setMaxCost, 1, 30, 1, (n) => `${n}×`)}
-        {slider("Min context window", minContext, setMinContext, 8, 1000, 8, (n) => `${n}k tokens`)}
+        {slider("Min context window", minContext, setMinContext, 4, 1000, 4, (n) => `${n}k tokens`)}
         <label className="flex items-center gap-2 self-end text-sm">
           <input type="checkbox" checked={mustSelfHost} onChange={(e) => setMustSelfHost(e.target.checked)}
             className="size-4 accent-[var(--accent)]" />
