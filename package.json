@@ -7,7 +7,7 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "typecheck": "tsc --noEmit",
+    "typecheck": "next typegen && tsc --noEmit",
     "verify:structure": "node scripts/check-structure.mjs",
     "verify:blocks": "node scripts/check-blocks.mjs",
     "verify:solutions": "node scripts/test-solutions.mjs",
