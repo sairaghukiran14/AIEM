@@ -42,13 +42,14 @@ jobs:
       - name: Paused email features (the default deployment)
         run: |
           TRUST_PROXY_HEADERS=1 npm start -- -p 3000 > server.log 2>&1 &
-          echo $! > server.pid
           for i in $(seq 1 30); do
             curl -sf http://localhost:3000/login > /dev/null && break
             sleep 1
           done
           npm run test:paused || { echo "--- server log ---"; cat server.log; exit 1; }
-          kill $(cat server.pid)
+          # npm start spawns the real server as a child, so stop it by name and wait for the port to free up
+          pkill -f "next start" || true
+          for i in $(seq 1 15); do curl -sf http://localhost:3000/login > /dev/null || break; sleep 1; done
 
       - name: End-to-end checks against a real database
         run: |
