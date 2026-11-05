@@ -52,6 +52,18 @@ jobs:
           pkill -f "next-server" || true; pkill -f "next start" || true
           for i in $(seq 1 15); do curl -sf http://localhost:3000/login > /dev/null || break; sleep 1; done
 
+      - name: Live voice interview, against local stand-ins for Sarvam and Anthropic
+        run: |
+          node scripts/mock-voice-apis.mjs > mock.log 2>&1 &
+          SARVAM_API_KEY=mock ANTHROPIC_API_KEY=mock SARVAM_BASE_URL=http://127.0.0.1:4010 ANTHROPIC_BASE_URL=http://127.0.0.1:4010 TRUST_PROXY_HEADERS=1 npm start -- -p 3000 > server.log 2>&1 &
+          for i in $(seq 1 30); do
+            curl -sf http://localhost:3000/login > /dev/null && break
+            sleep 1
+          done
+          npm run test:live-interview-api || { echo "--- server log ---"; cat server.log; exit 1; }
+          pkill -f "next-server" || true; pkill -f "next start" || true; pkill -f "mock-voice-apis" || true
+          for i in $(seq 1 15); do curl -sf http://localhost:3000/login > /dev/null || break; sleep 1; done
+
       - name: End-to-end checks against a real database
         run: |
           # Email features switched on, with verification forced on, so the held-certificate path is exercised too.

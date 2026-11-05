@@ -1,4 +1,5 @@
 import { tracks } from "@/content";
+import { interviewDifficulty } from "@/content/interview-difficulty";
 
 export type MockQuestion = {
   id: string;
@@ -10,6 +11,7 @@ export type MockQuestion = {
   answer: string;
   weakAnswer?: string;
   followUp?: string;
+  difficulty: 1 | 2 | 3;
 };
 
 function all(): MockQuestion[] {
@@ -27,6 +29,7 @@ function all(): MockQuestion[] {
           answer: q.answer,
           weakAnswer: q.weakAnswer,
           followUp: q.followUp,
+          difficulty: interviewDifficulty[`${l.slug}:${i}`] ?? 2,
         }))
       )
     );
@@ -39,6 +42,11 @@ function sample<T>(items: T[], n: number): T[] {
     [copy[i], copy[j]] = [copy[j], copy[i]];
   }
   return copy.slice(0, n);
+}
+
+/** Every question a live interview may draw from, for one track or all of them. */
+export function questionPool(track: string): MockQuestion[] {
+  return track === "mixed" ? all() : all().filter((q) => q.trackSlug === track);
 }
 
 /** A random set of interview questions from one track, or from every track when 'mixed'. */

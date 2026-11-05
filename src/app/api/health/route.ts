@@ -34,6 +34,7 @@ export async function GET(request: Request) {
     emailFeaturesEnabled: emailFeaturesEnabled(),
     mailConfigured: Boolean(process.env.RESEND_API_KEY && process.env.MAIL_FROM),
     siteUrlSet: Boolean(process.env.SITE_URL),
+    liveInterviewConfigured: Boolean(process.env.SARVAM_API_KEY && process.env.ANTHROPIC_API_KEY),
     emailVerificationRequired: isVerificationRequired(),
   };
   return NextResponse.json(body, { status: body.ok ? 200 : 503, headers: { "Cache-Control": "no-store" } });

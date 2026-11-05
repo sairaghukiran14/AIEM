@@ -24,6 +24,13 @@ export const POLICIES = {
   quizStartUser: { name: "quiz-start-user", limit: 30, windowSec: 60 * 60 },
   quizAnswerUser: { name: "quiz-answer-user", limit: 400, windowSec: 5 * 60 },
   accountUser: { name: "account-user", limit: 10, windowSec: 60 * 60 },
+  // Voice interviews spend real money on each call, so their limits are per account and deliberately low.
+  liveStartUser: { name: "live-start-user", limit: 3, windowSec: 24 * 60 * 60 },
+  liveLongStartUser: { name: "live-long-start-user", limit: 1, windowSec: 24 * 60 * 60 },
+  liveTurnUser: { name: "live-turn-user", limit: 120, windowSec: 60 * 60 },
+  liveTranscribeUser: { name: "live-transcribe-user", limit: 240, windowSec: 60 * 60 },
+  liveSpeechUser: { name: "live-speech-user", limit: 240, windowSec: 60 * 60 },
+  liveFinishUser: { name: "live-finish-user", limit: 10, windowSec: 60 * 60 },
 } satisfies Record<string, Policy>;
 
 /** Identities are hashed so email addresses are not kept in the counters. */

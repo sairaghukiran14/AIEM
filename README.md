@@ -147,6 +147,22 @@ flowchart LR
 - **Placement check** (`/assess`): twenty questions, two per track, from fundamentals upward. It suggests the first track you were not solid in and shows a score per track. It is advisory: nothing is scored or saved, and it unlocks nothing itself. To skip ahead, a learner passes each earlier track's gate.
 - **Mock interview** (`/interview`): reading an answer is not the same as giving one. You are asked a real interview question from the lessons, write the answer you would say out loud, then compare it with a strong answer and a common shallow one. A key-term check shows which distinctive words of the strong answer you used, as **word overlap and not a grade**, and you rate yourself. At the end you get the lessons to revisit. There is no model call involved, so it cannot be fooled or run up a bill, but it also cannot judge meaning, which is why the rating is yours.
 
+- **Live voice interview** (`/interview/live`): a spoken interview with an AI interviewer, for signed-in learners, limited to three a day. It opens with a short introduction, asks questions from the course out loud, follows up on what the candidate actually said, gives no feedback along the way, and ends with a scorecard.
+
+| Step | Model |
+|---|---|
+| Hearing the answer | Sarvam `saaras:v4` |
+| Choosing the next move (follow up, press on a gap, hint, repeat, move on, stop) | Sarvam Prism (`sarvam-prism`), within limits set in `live-interview-core.ts` |
+| Writing what the interviewer says | Sarvam `sarvam-105b-conversations` |
+| Speaking | Sarvam `bulbul:v4-flash` |
+| Writing the scorecard | Claude Sonnet 5.5 (`claude-sonnet-5-5`) |
+
+Interviews are 3 (quick) or 10, 15 or 20 questions; long ones run in two or three rounds with a pause between them. Every interview question is tagged easy, medium or hard (`src/content/interview-difficulty.ts`, drafted by `scripts/tag-interview-difficulty.mjs` and open to correction). The first question matches the chosen starting level; after each one, Prism's 0-3 rating of the answers moves the next question up or down a level. Easy questions get one follow-up, harder ones two. The overall score weights hard questions three times as much as easy ones, and the scorecard reports the hardest level handled reliably.
+
+Cost controls: the main questions and the closing line are fixed text, so they need no conversation-model call and their audio is generated once and replayed from `SpeechCache`; silence is trimmed from answers in the browser before speech recognition, which bills by the minute; the scorecard reuses the course's strong answers instead of writing new ones; and accounts get 3 quick interviews and 1 long one a day. A real 10-question run (November 2026) used about 2,200 characters of speech, 4 minutes of recognition and 4,600 input / 1,800 output Sonnet tokens.
+
+It needs `SARVAM_API_KEY` and `ANTHROPIC_API_KEY`, both server-side only. If a Sarvam decision or conversation call fails, the interview continues with built-in rules and scripted lines. Audio is never stored; transcripts and scorecards expire after 180 days and can be deleted. The reference answers never reach the browser during an interview. To test with no keys or cost, run `scripts/mock-voice-apis.mjs` (its header explains how) and then `npm run test:live-interview-api`.
+
 ## Architecture
 
 ### System overview

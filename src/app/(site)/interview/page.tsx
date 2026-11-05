@@ -1,4 +1,5 @@
 import { FastLink as Link } from "@/components/FastLink";
+import { Mic } from "lucide-react";
 
 import { InterviewRunner } from "@/components/interview/InterviewRunner";
 import { tracks } from "@/content";
@@ -48,8 +49,20 @@ export default async function InterviewPage({ searchParams }: Props) {
         </p>
       </header>
 
+      <section className="card flex flex-wrap items-center justify-between gap-4 border-2 !border-text p-5">
+        <div className="min-w-0 flex-1">
+          <p className="font-semibold">Live voice interview</p>
+          <p className="mt-1 text-sm text-text-muted">
+            Speak with an AI interviewer who follows up on your answers, then get a detailed scorecard.
+          </p>
+        </div>
+        <Link href="/interview/live" className="btn btn-primary">
+          <Mic className="size-4" /> Start a voice interview
+        </Link>
+      </section>
+
       <section>
-        <h2 className="mb-3 text-lg font-semibold">Choose a set</h2>
+        <h2 className="mb-3 text-lg font-semibold">Or practise by typing: choose a set</h2>
         <ul className="space-y-2">
           <li className="card flex flex-wrap items-center justify-between gap-3 p-4">
             <div>
