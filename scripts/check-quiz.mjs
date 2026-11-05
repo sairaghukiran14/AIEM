@@ -92,6 +92,12 @@ for (const q of bank) {
     ok(q.options.length === 4, `${where}: needs four options`);
     ok(new Set(q.options.map((o) => o.trim().toLowerCase())).size === 4 && q.options.every((o) => o.trim().length > 0), `${where}: options must be different and non-empty`);
     ok(q.correctIndex === 0, `${where}: the correct option is written first`);
+    const norm = (t) => t.toLowerCase().replace(/[^a-z0-9 ]/g, "").split(/\s+/).filter(Boolean);
+    for (let a = 0; a < 4; a++) for (let b = a + 1; b < 4; b++) {
+      const A = norm(q.options[a]), B = norm(q.options[b]);
+      const [S, L] = A.length <= B.length ? [A, B] : [B, A];
+      ok(!(S.length >= 3 && S.every((w, i) => w === L[i])), `${where}: two options say the same thing (one extends the other)`);
+    }
     ok(!q.options.some((o) => LAZY.test(o)), `${where}: avoid "all/none of the above"`);
     ok(q.options.every((o) => o.length <= 220), `${where}: an option is over 220 characters`);
   }
