@@ -12,7 +12,7 @@ type TrackInfo = { slug: string; order: number; title: string };
 type Verdict = { label: string; hint: string };
 
 function verdict(correct: number): Verdict {
-  if (correct === 2) return { label: "Solid", hint: "You can skim this track and go straight to its gate." };
+  if (correct === 2) return { label: "Solid", hint: "You can skip the lessons and test out with this track's gate." };
   if (correct === 1) return { label: "Shaky", hint: "Review the lessons you find hard, then take the gate." };
   return { label: "Start here", hint: "Work through this track from its first lesson." };
 }
@@ -61,7 +61,16 @@ export function PlacementRunner({ questions, tracks }: { questions: PlacementQue
                 <Link href={`/tracks/${startAt.track.slug}`} className="font-semibold text-text underline">
                   Track {startAt.track.order}: {startAt.track.title}
                 </Link>
-                . Earlier tracks looked solid, but each gate still has to be passed to unlock the next track.
+                .
+                {startAt.track.order > 1 && (
+                  <>
+                    {" "}Earlier tracks looked solid, so you can skip their lessons: pass each gate in order, starting with{" "}
+                    <Link href={`/tracks/${tracks[0].slug}#gate`} className="font-semibold text-text underline">
+                      Track 1
+                    </Link>
+                    , to reach it.
+                  </>
+                )}
               </>
             ) : firstWeak ? (
               <>
@@ -144,7 +153,7 @@ export function PlacementRunner({ questions, tracks }: { questions: PlacementQue
           </Link>
         </div>
         <p className="text-xs text-text-dim">
-          This placement check is not scored or saved, and it does not unlock anything. Track locks still depend on passing each gate.
+          This placement check is not scored or saved, and it does not unlock anything. To skip ahead, pass a track&apos;s gate, which you can take without doing its lessons.
         </p>
       </div>
     );

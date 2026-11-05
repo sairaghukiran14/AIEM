@@ -2,7 +2,8 @@ import { FastLink as Link } from "@/components/FastLink";
 import { notFound } from "next/navigation";
 import { ArrowLeft, ArrowRight, CheckCircle2, Clock, Lock, MessagesSquare } from "lucide-react";
 
-import { BlockRenderer, CodeBlock } from "@/components/BlockRenderer";
+import { BlockRenderer } from "@/components/BlockRenderer";
+import { CodeExample } from "@/components/CodeExample";
 import { ChallengeRunner } from "@/components/challenges/ChallengeRunner";
 import { RichText } from "@/components/RichText";
 import { getLesson, getLessonNeighbours, toClientChallenge } from "@/content";
@@ -99,9 +100,10 @@ export default async function LessonPage({ params }: Props) {
 
         <section>
           <SectionHeading n={3} id="code">Code example</SectionHeading>
-          <CodeBlock
+          <CodeExample
             code={lesson.codeExample.code}
             language={lesson.codeExample.language}
+            javascript={lesson.codeExample.javascript}
             caption={lesson.codeExample.caption}
           />
         </section>
@@ -158,7 +160,10 @@ export default async function LessonPage({ params }: Props) {
           </p>
           {!user && (
             <p className="mb-5 rounded-lg border border-amber/40 bg-amber/5 px-4 py-3 text-sm text-text-muted">
-              <Link href="/signup" className="font-medium text-amber hover:underline">
+              <Link
+                href={`/signup?next=${encodeURIComponent(`/learn/${track.slug}/${lesson.slug}#challenges`)}`}
+                className="font-medium text-amber hover:underline"
+              >
                 Create a free account
               </Link>{" "}
               to submit answers, earn XP and track your progress.

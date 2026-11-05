@@ -31,10 +31,18 @@ export function ResultBanner({ result, passPercent }: { result: SubmitResult; pa
         <span>Attempt {result.attempt}</span>
         {result.xpAwarded > 0 ? (
           <span className="text-amber">+{result.xpAwarded} XP</span>
+        ) : result.solutionViewed ? (
+          <span>No XP, because you opened the solution</span>
         ) : result.passed ? (
           <span>XP already earned for this one</span>
         ) : null}
       </div>
+
+      {result.answersHidden && (
+        <p className="mt-2 text-sm text-text-muted">
+          Correct answers stay hidden until you pass. {result.retryMessage}
+        </p>
+      )}
 
       {result.lessonCompleted && (
         <p className="mt-2 flex items-center gap-2 text-sm text-green">
@@ -43,7 +51,7 @@ export function ResultBanner({ result, passPercent }: { result: SubmitResult; pa
       )}
       {result.trackCompleted && (
         <p className="mt-2 flex items-center gap-2 text-sm text-green">
-          <Trophy className="size-4" /> Track complete! The next track is unlocked.
+          <Trophy className="size-4" /> Gate passed. The next track is unlocked.
         </p>
       )}
       {result.capstoneCompleted && (

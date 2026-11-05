@@ -12,6 +12,7 @@ import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { createRequire } from "node:module";
 import { fileURLToPath } from "node:url";
+import { capstoneKey, gateKey } from "./lib/quiz-key.mjs";
 
 const root = fileURLToPath(new URL("..", import.meta.url));
 const require = createRequire(join(root, "package.json"));
@@ -158,8 +159,7 @@ async function main() {
     }
     await db.collection("progresses").updateOne({ userId: holdUser._id, lessonSlug: l.slug }, { $set: { trackSlug: t1.slug, status: "completed", completedAt: new Date() } }, { upsert: true });
   }
-  const holdFirst = await call("/api/challenges/submit", { challengeId: t1.gate, answer: Array(t1.gateQuestions).fill(null) }, holdLogin.cookie);
-  const holdPass = await call("/api/challenges/submit", { challengeId: t1.gate, answer: holdFirst.body.feedback.results.map((x) => x.correctIndex) }, holdLogin.cookie);
+  const holdPass = await call("/api/challenges/submit", { challengeId: t1.gate, answer: gateKey(t1.slug) }, holdLogin.cookie);
   ok(holdPass.body.passed === true, "an unverified account can still pass a gate");
   if (required) {
     ok(holdPass.body.certificatesHeld === true && (holdPass.body.certificates ?? []).length === 0, "the certificate is held while the address is unverified");
@@ -249,11 +249,9 @@ async function main() {
   const cookie = newCookie;
   const last = tracks[tracks.length - 1];
   const post = (id, answer) => call("/api/challenges/submit", { challengeId: id, answer }, cookie);
-  const passQuiz = async (id, n) => {
-    const first = await post(id, Array(n).fill(null));
-    if (first.status !== 200) return first;
-    return post(id, first.body.feedback.results.map((x) => x.correctIndex));
-  };
+  // Tests stand in for the 15-minute wait by moving failed attempts into the past.
+  const skipRetryWait = (id) =>
+    db.collection("submissions").updateMany({ userId: user._id, challengeId: id, passed: false }, { $set: { createdAt: new Date(Date.now() - 3_600_000) } });
   const seed = async (t) => {
     for (const l of t.lessons) {
       for (const id of l.ids) {
@@ -275,16 +273,26 @@ async function main() {
   ok(r.status === 403, "the last track's gate is locked at the start");
   r = await post("capstone-exam", Array(capstoneQuestions).fill(0));
   ok(r.status === 403, "the capstone is locked at the start (" + (r.body.error ?? "") + ")");
-  r = await post(tracks[0].gate, Array(tracks[0].gateQuestions).fill(0));
-  ok(r.status === 403, "a gate is closed until its lessons are done");
+  r = await post(tracks[0].gate, Array(tracks[0].gateQuestions).fill(null));
+  ok(r.status === 200 && r.body.passed === false, "a gate can be attempted before its lessons are done");
+  ok(r.body.answersHidden === true && r.body.feedback.results.every((x) => !("correctIndex" in x) && !("explanation" in x)), "a failed gate does not reveal the answers");
+  r = await post(tracks[0].gate, gateKey(tracks[0].slug));
+  ok(r.status === 429 && r.body.retryAfterSeconds > 0, "a failed gate cannot be retried straight away");
+  await skipRetryWait(tracks[0].gate);
+  r = await post(tracks[0].gate, gateKey(tracks[0].slug));
+  ok(r.status === 200 && r.body.passed === true && r.body.trackCompleted === true, "passing a gate without the lessons tests out of the track");
+  r = await post(tracks[1].gate, Array(tracks[1].gateQuestions).fill(null));
+  ok(r.status === 200, "testing out unlocks the next track");
+  await skipRetryWait(tracks[1].gate);
   r = await post("nope", 1);
   ok(r.status === 404, "an unknown challenge is a 404");
 
-  for (const t of tracks) {
+  for (const t of tracks.slice(1)) {
     await seed(t);
     const wrong = await post(t.gate, Array(t.gateQuestions).fill(null));
     ok(wrong.status === 200 && wrong.body.passed === false, `${t.slug}: blank answers fail the gate`);
-    const pass = await passQuiz(t.gate, t.gateQuestions);
+    await skipRetryWait(t.gate);
+    const pass = await post(t.gate, gateKey(t.slug));
     ok(pass.body.passed === true && pass.body.trackCompleted === true, `${t.slug}: correct answers pass the gate`);
     if (t !== last) {
       r = await post("capstone-exam", Array(capstoneQuestions).fill(0));
@@ -293,7 +301,9 @@ async function main() {
   }
   const blank = await post("capstone-exam", Array(capstoneQuestions).fill(null));
   ok(blank.status === 200 && blank.body.passed === false, `the capstone opens after all ${tracks.length} gates (blank answers fail)`);
-  const cap = await passQuiz("capstone-exam", capstoneQuestions);
+  ok(blank.body.answersHidden === true, "a failed capstone does not reveal the answers");
+  await skipRetryWait("capstone-exam");
+  const cap = await post("capstone-exam", capstoneKey());
   ok(cap.body.passed === true && cap.body.capstoneCompleted === true, "correct capstone answers pass it");
   const again = await post("capstone-exam", Array(capstoneQuestions).fill(null));
   ok(again.body.xpAwarded === 0, "no extra XP on a repeat attempt");

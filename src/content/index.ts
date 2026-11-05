@@ -2,6 +2,7 @@ import type { Challenge, Lesson, Quiz, Track } from "@/content/types";
 import { balancedOrders } from "@/lib/shuffle";
 
 import { capstone } from "./capstone";
+import { javascriptExamples } from "./code-js";
 import { extras } from "./extras";
 import { llmFoundations } from "./tracks/llm-foundations";
 import { promptEngineering } from "./tracks/prompt-engineering";
@@ -14,17 +15,17 @@ import { productionAi } from "./tracks/production-ai";
 import { advancedRag } from "./tracks/advanced-rag";
 import { servingAndMultimodal } from "./tracks/serving-and-multimodal";
 
-/** Appends the practice blocks in `extras` to each lesson's sections. */
+/** Appends the practice blocks in `extras` to each lesson's sections, and adds its JavaScript code example. */
 function withExtras(track: Track): Track {
   return {
     ...track,
     lessons: track.lessons.map((lesson) => {
       const more = extras[lesson.slug];
-      if (!more) return lesson;
       return {
         ...lesson,
-        concept: [...lesson.concept, ...(more.concept ?? [])],
-        underTheHood: [...lesson.underTheHood, ...(more.underTheHood ?? [])],
+        codeExample: { ...lesson.codeExample, javascript: javascriptExamples[lesson.slug] },
+        concept: [...lesson.concept, ...(more?.concept ?? [])],
+        underTheHood: [...lesson.underTheHood, ...(more?.underTheHood ?? [])],
       };
     }),
   };

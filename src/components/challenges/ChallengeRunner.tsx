@@ -1,6 +1,6 @@
 "use client";
 
-import { useRouter } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { CheckCircle2, Circle } from "lucide-react";
 
 import type { ClientChallenge } from "@/content";
@@ -29,6 +29,8 @@ export function ChallengeRunner({
   const router = useRouter();
   // Refresh server components so progress, XP and locks update after a submit.
   const onDone = () => router.refresh();
+  // Come back to this challenge after signing in. The draft is still in this browser.
+  const signInHref = `/login?next=${encodeURIComponent(`${usePathname()}#${challenge.id}`)}`;
 
   return (
     <section id={challenge.id} className="card scroll-mt-24 p-5 sm:p-6">
@@ -50,11 +52,11 @@ export function ChallengeRunner({
       </header>
 
       {challenge.kind === "code" ? (
-        <CodeRunner challenge={challenge} signedIn={signedIn} onDone={onDone} />
+        <CodeRunner challenge={challenge} signedIn={signedIn} signInHref={signInHref} passed={passed} onDone={onDone} />
       ) : challenge.kind === "spot-the-bug" ? (
-        <BugRunner challenge={challenge} signedIn={signedIn} onDone={onDone} />
+        <BugRunner challenge={challenge} signedIn={signedIn} signInHref={signInHref} onDone={onDone} />
       ) : (
-        <QuizRunner challenge={challenge} signedIn={signedIn} onDone={onDone} />
+        <QuizRunner challenge={challenge} signedIn={signedIn} signInHref={signInHref} onDone={onDone} />
       )}
     </section>
   );

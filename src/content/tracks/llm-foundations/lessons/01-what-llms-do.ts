@@ -17,7 +17,7 @@ export const lesson: Lesson = {
       type: "visual",
       key: "next-token-predictor",
       caption:
-        "Type a prompt and watch the model score candidate next tokens, pick one, append it, and score again.",
+        "Press a step button and watch the model score candidate next tokens, pick one, append it, and score again.",
     },
     {
       type: "p",

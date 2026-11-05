@@ -7,7 +7,7 @@ import { VerifyEmailBanner } from "@/components/VerifyEmail";
 import { requireUser } from "@/lib/auth";
 import { isVerificationRequired } from "@/lib/email-verification";
 import { connectDB } from "@/lib/db";
-import { isTrackUnlocked, loadProgress, trackCompletion } from "@/lib/progress";
+import { isGatePassed, isTrackUnlocked, loadProgress, trackCompletion } from "@/lib/progress";
 import { Submission } from "@/models/Submission";
 
 import { DashboardSkeleton } from "@/components/PageSkeletons";
@@ -43,11 +43,11 @@ export default async function DashboardPage() {
 async function DashboardContent({ user }: { user: Awaited<ReturnType<typeof requireUser>> }) {
   const [progress, recent] = await Promise.all([loadProgress(user.id), loadRecentActivity(user.id)]);
 
-  // Resume where the user left off: the first unfinished lesson in the first unlocked track.
+  // Resume where the user left off: the first unfinished lesson in the first unlocked track they have not tested out of.
   let resumeTrack: (typeof publishedTracks)[number] | undefined;
   let resumeLesson: (typeof publishedTracks)[number]["lessons"][number] | undefined;
   for (const track of publishedTracks) {
-    if (!isTrackUnlocked(track.slug, progress)) continue;
+    if (!isTrackUnlocked(track.slug, progress) || isGatePassed(track.slug, progress)) continue;
     const next = track.lessons.find((l) => !progress.completedLessons.has(l.slug));
     if (next) {
       resumeTrack = track;

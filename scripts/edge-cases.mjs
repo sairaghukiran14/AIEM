@@ -13,6 +13,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { createRequire } from "node:module";
 import { fileURLToPath } from "node:url";
+import { gateKey } from "./lib/quiz-key.mjs";
 
 const root = fileURLToPath(new URL("..", import.meta.url));
 const require = createRequire(join(root, "package.json"));
@@ -489,10 +490,23 @@ async function main() {
   const cpuCodes = [];
   for (let i = 0; i < 22; i++) cpuCodes.push((await post("/api/challenges/submit", { challengeId: codeId, answer: { code: challengeCode.starter } }, { cookie: cpuLogin.cookie })).status);
   ok(cpuCodes.filter((c) => c === 200).length === 20 && cpuCodes.filter((c) => c === 429).length === 2, `code runs are limited to 20 per 5 minutes per account (${cpuCodes.filter((c) => c === 200).length} answered, ${cpuCodes.filter((c) => c === 429).length} limited)`);
+  // a stuck learner can open the solution; that first pass then earns no XP
+  const solEmail = newEmail("solution");
+  await signup(solEmail);
+  const solLogin = await post("/api/auth/login", { email: solEmail, password: PASSWORD }, { ip: "198.51.100.83" });
+  r = await post("/api/challenges/solution", { challengeId: codeId }, { cookie: solLogin.cookie });
+  ok(r.status === 200 && typeof r.json.solution === "string", `a signed-in learner can open a solution (${r.status})`);
+  const solPass = await post("/api/challenges/submit", { challengeId: codeId, answer: { code: r.json.solution } }, { cookie: solLogin.cookie });
+  ok(solPass.json.passed === true && solPass.json.xpAwarded === 0 && solPass.json.solutionViewed === true, "passing after opening the solution earns no XP");
+  r = await post("/api/challenges/solution", { challengeId: codeId });
+  ok(r.status === 401, `solutions need an account (${r.status})`);
+
   r = await sub("rag-gate", Array(10).fill(0));
   ok(r.status === 403, `a gate in a locked track is a 403 (${r.status})`);
-  r = await sub(track1.gate, Array(track1.gateQuestions).fill(0));
-  ok(r.status === 403, `a gate before its lessons are done is a 403 (${r.status})`);
+  r = await sub(track1.gate, Array(track1.gateQuestions).fill(null));
+  ok(r.status === 200 && r.json.answersHidden === true, `a gate can be tried before its lessons, without revealing answers (${r.status})`);
+  r = await sub(track1.gate, Array(track1.gateQuestions).fill(null));
+  ok(r.status === 429, `a failed gate cannot be retried straight away (${r.status})`);
   r = await sub("capstone-exam", Array(36).fill(0));
   ok(r.status === 403, `the capstone before the gates is a 403 (${r.status})`);
 
@@ -527,8 +541,7 @@ async function main() {
     }
     await db.collection("progresses").updateOne({ userId: xuser._id, lessonSlug: l.slug }, { $set: { trackSlug: "llm-foundations", status: "completed", completedAt: new Date() } }, { upsert: true });
   }
-  const first = await post("/api/challenges/submit", { challengeId: track1.gate, answer: Array(track1.gateQuestions).fill(null) }, { cookie: xk });
-  const gate = await post("/api/challenges/submit", { challengeId: track1.gate, answer: first.json.feedback.results.map((x) => x.correctIndex) }, { cookie: xk });
+  const gate = await post("/api/challenges/submit", { challengeId: track1.gate, answer: gateKey("llm-foundations") }, { cookie: xk });
   ok(gate.json.passed === true, "a track gate can be passed by an account with a hostile name");
   const cert = await db.collection("certificates").findOne({ userId: xuser._id });
   ok(!!cert, "a certificate was issued");

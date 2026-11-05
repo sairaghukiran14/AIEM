@@ -138,7 +138,7 @@ export function AuthForm({ mode, next, showForgot = false }: Props) {
       <p className="mt-6 text-sm text-text-muted">
         {isSignup ? "Already have an account? " : "New here? "}
         <Link
-          href={isSignup ? "/login" : "/signup"}
+          href={`${isSignup ? "/login" : "/signup"}?next=${encodeURIComponent(next)}`}
           className="font-medium text-accent-soft hover:underline"
         >
           {isSignup ? "Sign in" : "Create one"}

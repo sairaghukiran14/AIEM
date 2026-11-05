@@ -211,8 +211,8 @@ export type Lesson = {
   concept: Block[];
   /** Section 2 — the mechanism interviewers probe. */
   underTheHood: Block[];
-  /** Section 3 — runnable example. */
-  codeExample: { language: string; code: string; caption?: string };
+  /** Section 3 — worked example. Helpers it calls may be left undefined. `javascript` is merged in from content/code-js. */
+  codeExample: { language: string; code: string; caption?: string; javascript?: string };
   /** Section 4 — interview corner. */
   interview: InterviewQA[];
   /** Section 5 — scored challenges, in the order they are shown. */

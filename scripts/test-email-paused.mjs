@@ -10,6 +10,7 @@ import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { createRequire } from "node:module";
 import { fileURLToPath } from "node:url";
+import { gateKey } from "./lib/quiz-key.mjs";
 
 const root = fileURLToPath(new URL("..", import.meta.url));
 const require = createRequire(join(root, "package.json"));
@@ -51,7 +52,6 @@ const tdir = join(root, "src/content/tracks");
 const slug = readdirSync(tdir).find((s) => /^\s*order: 1,/m.test(readFileSync(join(tdir, s, "index.ts"), "utf8")));
 const index = readFileSync(join(tdir, slug, "index.ts"), "utf8");
 const gate = index.match(/id: "(\w+-gate)"/)[1];
-const gateQuestions = (index.match(/id: "g\d+"/g) || []).length;
 const lessons = readdirSync(join(tdir, slug, "lessons")).sort().map((f) => {
   const s = readFileSync(join(tdir, slug, "lessons", f), "utf8");
   return { slug: s.match(/^ {2}slug: "([^"]+)"/m)[1], ids: [...new Set([...s.matchAll(/id: "(\w+-\d+-(?:quiz|bug|code))"/g)].map((m) => m[1]))] };
@@ -102,8 +102,7 @@ async function main() {
       }
       await db.collection("progresses").updateOne({ userId: user._id, lessonSlug: l.slug }, { $set: { trackSlug: slug, status: "completed", completedAt: new Date() } }, { upsert: true });
     }
-    const first = await call("/api/challenges/submit", { challengeId: gate, answer: Array(gateQuestions).fill(null) }, cookie);
-    const pass = await call("/api/challenges/submit", { challengeId: gate, answer: first.body.feedback.results.map((x) => x.correctIndex) }, cookie);
+    const pass = await call("/api/challenges/submit", { challengeId: gate, answer: gateKey(slug) }, cookie);
     ok(pass.body.passed === true && !pass.body.certificatesHeld, "passing the gate is not held back");
     ok((pass.body.certificates ?? []).length === 1, "the track certificate is issued straight away");
     const page = await (await fetch(BASE + "/certificates", { headers: { cookie } })).text();

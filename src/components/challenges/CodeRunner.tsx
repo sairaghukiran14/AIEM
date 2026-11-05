@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { CheckCircle2, Lightbulb, Loader2, Play, XCircle } from "lucide-react";
+import { CheckCircle2, Eye, Lightbulb, Loader2, Play, XCircle } from "lucide-react";
 
 import type { ClientCodeChallenge } from "@/content";
 
@@ -9,7 +9,8 @@ import { ResultSkeleton } from "@/components/Skeleton";
 
 import { ResultBanner } from "./ResultBanner";
 import { runTests, type TestOutcome } from "./runCode";
-import { submitChallenge, type SubmitResult } from "./submit";
+import { fetchSolution, submitChallenge, type SubmitResult } from "./submit";
+import { useDraft } from "./useDraft";
 
 type ServerFeedback = { fatal?: string | null; outcomes?: { name: string; passed: boolean; error?: string }[] };
 
@@ -26,13 +27,19 @@ function serverReason(feedback: unknown): string {
 export function CodeRunner({
   challenge,
   signedIn,
+  signInHref,
+  passed,
   onDone,
 }: {
   challenge: ClientCodeChallenge;
   signedIn: boolean;
+  signInHref: string;
+  passed: boolean;
   onDone: () => void;
 }) {
-  const [code, setCode] = useState(challenge.starter);
+  const [code, setCode, clearCode] = useDraft(`aiem:code:${challenge.id}`, challenge.starter);
+  const [solution, setSolution] = useState<string | null>(null);
+  const [loadingSolution, setLoadingSolution] = useState(false);
   const [outcomes, setOutcomes] = useState<TestOutcome[] | null>(null);
   const [fatal, setFatal] = useState<string | null>(null);
   const [hintsShown, setHintsShown] = useState(0);
@@ -70,8 +77,23 @@ export function CodeRunner({
     }
   }
 
+  async function showSolution() {
+    setLoadingSolution(true);
+    setError(null);
+    try {
+      setSolution(await fetchSolution(challenge.id));
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Could not load the solution");
+    } finally {
+      setLoadingSolution(false);
+    }
+  }
+
+  const hintsDone = hintsShown >= challenge.hints.length;
+
   return (
     <div className="space-y-4">
+      <p className="text-xs text-text-dim">Written in JavaScript, and saved in this browser as you type.</p>
       <textarea
         value={code}
         onChange={(e) => setCode(e.target.value)}
@@ -104,13 +126,25 @@ export function CodeRunner({
         <button
           className="btn btn-ghost"
           onClick={() => {
-            setCode(challenge.starter);
+            clearCode();
             setOutcomes(null);
             setFatal(null);
           }}
         >
           Reset
         </button>
+        {hintsDone && !solution && (
+          signedIn ? (
+            <button className="btn btn-ghost" onClick={showSolution} disabled={loadingSolution}>
+              {loadingSolution ? <Loader2 className="size-4 animate-spin" /> : <Eye className="size-4" />}
+              {passed ? "Show solution" : "Still stuck? Show solution (no XP)"}
+            </button>
+          ) : (
+            <a href={signInHref} className="btn btn-ghost">
+              <Eye className="size-4" /> Sign in to see the solution
+            </a>
+          )
+        )}
       </div>
 
       {hintsShown > 0 && (
@@ -122,6 +156,23 @@ export function CodeRunner({
             </li>
           ))}
         </ul>
+      )}
+
+      {solution && (
+        <div className="space-y-2 rounded-lg border border-border-strong bg-bg-raised p-3 text-sm">
+          <p className="font-medium">Reference solution</p>
+          <p className="text-text-muted">
+            {passed
+              ? "One way to solve it. Compare it with yours."
+              : "Read it, then close it and try writing it yourself. You can still pass and complete the lesson, but this challenge will earn no XP."}
+          </p>
+          <pre className="overflow-x-auto rounded-lg bg-bg p-3 font-mono text-[13px] leading-relaxed">
+            <code>{solution}</code>
+          </pre>
+          <button className="btn btn-ghost" onClick={() => setSolution(null)}>
+            Close
+          </button>
+        </div>
       )}
 
       {fatal && (
@@ -190,7 +241,7 @@ export function CodeRunner({
             Submit solution
           </button>
         ) : (
-          <a href="/login" className="btn btn-primary">
+          <a href={signInHref} className="btn btn-primary">
             Sign in to submit
           </a>
         )

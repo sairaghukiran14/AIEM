@@ -1,12 +1,12 @@
 import { FastLink as Link } from "@/components/FastLink";
 import { notFound } from "next/navigation";
-import { CheckCircle2, Circle, Clock, FileText, Lock } from "lucide-react";
+import { CheckCircle2, ChevronRight, Circle, Clock, FileText, Lock } from "lucide-react";
 
 import { ChallengeRunner } from "@/components/challenges/ChallengeRunner";
 import { TrackIcon } from "@/components/TrackIcon";
 import { getTrack, toClientChallenge, tracks, trackXp } from "@/content";
 import { getCurrentUser } from "@/lib/auth";
-import { isGatePassed, isGateUnlocked, isTrackUnlocked, loadProgress } from "@/lib/progress";
+import { isGatePassed, isTrackUnlocked, loadProgress } from "@/lib/progress";
 
 type Props = { params: Promise<{ track: string }> };
 
@@ -37,9 +37,9 @@ export default async function TrackPage({ params }: Props) {
     );
   }
 
-  const gateUnlocked = isGateUnlocked(track.slug, progress);
   const gatePassed = isGatePassed(track.slug, progress);
   const doneLessons = track.lessons.filter((l) => progress.completedLessons.has(l.slug)).length;
+  const lessonsDone = doneLessons === track.lessons.length;
 
   return (
     <div className="space-y-10">
@@ -111,34 +111,31 @@ export default async function TrackPage({ params }: Props) {
       {track.gate && (
         <section id="gate" className="scroll-mt-24">
           <h2 className="mb-4 text-lg font-semibold">Track gate</h2>
-          {gateUnlocked ? (
-            <>
-              <ChallengeRunner
-                challenge={toClientChallenge(track.gate)}
-                signedIn={Boolean(user)}
-                passed={gatePassed}
-              />
-              {gatePassed && track.order === tracks.length && (
-                <p className="mt-4 text-sm">
-                  That was the last track.{" "}
-                  <Link href="/capstone" className="font-semibold underline">
-                    Take the capstone
-                  </Link>{" "}
-                  to earn the course certificate.
-                </p>
-              )}
-            </>
-          ) : (
-            <div className="card flex items-center gap-4 p-5">
-              <Lock className="size-6 shrink-0 text-text-dim" />
-              <div>
-                <p className="font-medium">{track.gate.title}</p>
-                <p className="text-sm text-text-muted">
-                  Complete all {track.lessons.length} lessons — every quiz, bug hunt and code
-                  challenge — to unlock the gate.
-                </p>
-              </div>
-            </div>
+          <p className="mb-4 max-w-2xl text-sm text-text-muted">
+            Pass with {track.gate.passPercent}% to unlock the next track and earn this track&apos;s certificate.
+            {lessonsDone || gatePassed
+              ? " "
+              : " The lessons are recommended, not required: if you already know this material, you can test out now. "}
+            After a failed attempt, the correct answers stay hidden and you wait 15 minutes to retry.
+          </p>
+          <details open={lessonsDone || gatePassed} className="group">
+            <summary className="btn btn-ghost mb-4 w-fit cursor-pointer list-none group-open:hidden">
+              <ChevronRight className="size-4" /> {lessonsDone ? "Open the gate" : "Test out with the gate"}
+            </summary>
+            <ChallengeRunner
+              challenge={toClientChallenge(track.gate)}
+              signedIn={Boolean(user)}
+              passed={gatePassed}
+            />
+          </details>
+          {gatePassed && track.order === tracks.length && (
+            <p className="mt-4 text-sm">
+              That was the last track.{" "}
+              <Link href="/capstone" className="font-semibold underline">
+                Take the capstone
+              </Link>{" "}
+              to earn the course certificate.
+            </p>
           )}
         </section>
       )}

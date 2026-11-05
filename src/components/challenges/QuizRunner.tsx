@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { Check, Loader2, X } from "lucide-react";
 
 import type { ClientQuiz } from "@/content";
@@ -9,29 +9,37 @@ import { ResultSkeleton } from "@/components/Skeleton";
 
 import { ResultBanner } from "./ResultBanner";
 import { submitChallenge, type SubmitResult } from "./submit";
+import { useDraft } from "./useDraft";
 
 type QuestionFeedback = {
   questionId: string;
   correct: boolean;
-  correctIndex: number;
-  explanation: string;
+  /** Absent on a failed gate or capstone, which keep the key hidden. */
+  correctIndex?: number;
+  explanation?: string;
 };
 
 export function QuizRunner({
   challenge,
   signedIn,
+  signInHref,
   onDone,
 }: {
   challenge: ClientQuiz;
   signedIn: boolean;
+  signInHref: string;
   onDone: () => void;
 }) {
-  const [answers, setAnswers] = useState<(number | null)[]>(
-    () => challenge.questions.map(() => null)
-  );
+  const blank = useMemo<(number | null)[]>(() => challenge.questions.map(() => null), [challenge.questions]);
+  const [saved, setAnswers, clearAnswers] = useDraft(`aiem:answers:${challenge.id}`, blank);
+  // A draft saved before the questions changed no longer lines up, so it is ignored.
+  const answers = saved.length === blank.length ? saved : blank;
   const [result, setResult] = useState<SubmitResult | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
+  // The draft is cleared on submit, so the graded result keeps its own copy of what was chosen.
+  const [submitted, setSubmitted] = useState<(number | null)[]>(blank);
+  const shown = result ? submitted : answers;
 
   const feedback = result
     ? new Map(
@@ -43,8 +51,10 @@ export function QuizRunner({
   async function submit() {
     setPending(true);
     setError(null);
+    setSubmitted(answers);
     try {
       setResult(await submitChallenge(challenge.id, answers));
+      clearAnswers();
       onDone();
     } catch (e) {
       setError(e instanceof Error ? e.message : "Something went wrong");
@@ -55,7 +65,7 @@ export function QuizRunner({
 
   function retry() {
     setResult(null);
-    setAnswers(challenge.questions.map(() => null));
+    setSubmitted(blank);
   }
 
   return (
@@ -78,8 +88,8 @@ export function QuizRunner({
             </legend>
             {q.options.map((opt, oi) => {
               // Positions here are display positions; the server translates them.
-              const chosen = answers[qi] === oi;
-              const isCorrect = fb && oi === fb.correctIndex;
+              const chosen = shown[qi] === oi;
+              const isCorrect = fb && (oi === fb.correctIndex || (fb.correct && chosen));
               const isWrongChoice = fb && chosen && !fb.correct;
               return (
                 <label
@@ -98,7 +108,7 @@ export function QuizRunner({
                     type="radio"
                     name={`${challenge.id}-${q.id}`}
                     checked={chosen}
-                    onChange={() => setAnswers((a) => a.map((v, i) => (i === qi ? oi : v)))}
+                    onChange={() => setAnswers(answers.map((v, i) => (i === qi ? oi : v)))}
                     className="mt-0.5 accent-[var(--accent)]"
                   />
                   <span className="flex-1">{opt}</span>
@@ -114,7 +124,7 @@ export function QuizRunner({
                 </label>
               );
             })}
-            {fb && (
+            {fb?.explanation && (
               <p className="rounded-lg bg-bg-raised px-3 py-2 text-sm text-text-muted">
                 {fb.explanation}
               </p>
@@ -133,7 +143,7 @@ export function QuizRunner({
       )}
 
       {!signedIn ? (
-        <a href="/login" className="btn btn-primary">
+        <a href={signInHref} className="btn btn-primary">
           Sign in to submit
         </a>
       ) : result ? (

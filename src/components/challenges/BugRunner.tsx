@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { Check, Loader2, X } from "lucide-react";
 
 import type { ClientSpotTheBug } from "@/content";
@@ -9,6 +9,7 @@ import { ResultSkeleton } from "@/components/Skeleton";
 
 import { ResultBanner } from "./ResultBanner";
 import { submitChallenge, type SubmitResult } from "./submit";
+import { useDraft } from "./useDraft";
 
 type BugFeedback = {
   lineOk: boolean;
@@ -22,25 +23,31 @@ type BugFeedback = {
 export function BugRunner({
   challenge,
   signedIn,
+  signInHref,
   onDone,
 }: {
   challenge: ClientSpotTheBug;
   signedIn: boolean;
+  signInHref: string;
   onDone: () => void;
 }) {
-  const [line, setLine] = useState<number | null>(null);
-  const [reason, setReason] = useState<number | null>(null);
+  const empty = useMemo(() => ({ line: null as number | null, reason: null as number | null }), []);
+  const [draft, setDraft, clearDraft] = useDraft(`aiem:bug:${challenge.id}`, empty);
+  const [submitted, setSubmitted] = useState(empty);
   const [result, setResult] = useState<SubmitResult | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
 
   const fb = result?.feedback as BugFeedback | undefined;
+  const { line, reason } = result ? submitted : draft;
 
   async function submit() {
     setPending(true);
     setError(null);
+    setSubmitted(draft);
     try {
       setResult(await submitChallenge(challenge.id, { line, reason }));
+      clearDraft();
       onDone();
     } catch (e) {
       setError(e instanceof Error ? e.message : "Something went wrong");
@@ -63,7 +70,7 @@ export function BugRunner({
                 key={n}
                 type="button"
                 disabled={Boolean(result) || text.trim() === ""}
-                onClick={() => setLine(n)}
+                onClick={() => setDraft({ ...draft, line: n })}
                 className={`flex w-full items-start gap-4 px-3 py-0.5 text-left transition-colors ${
                   isBug
                     ? "border-l-2 border-text bg-bg-hover font-semibold"
@@ -115,7 +122,7 @@ export function BugRunner({
                 type="radio"
                 name={challenge.id}
                 checked={chosen}
-                onChange={() => setReason(i)}
+                onChange={() => setDraft({ ...draft, reason: i })}
                 className="mt-0.5 accent-[var(--accent)]"
               />
               <span className="flex-1">{r}</span>
@@ -154,7 +161,7 @@ export function BugRunner({
       )}
 
       {!signedIn ? (
-        <a href="/login" className="btn btn-primary">
+        <a href={signInHref} className="btn btn-primary">
           Sign in to submit
         </a>
       ) : result ? (
@@ -162,8 +169,7 @@ export function BugRunner({
           className="btn btn-ghost"
           onClick={() => {
             setResult(null);
-            setLine(null);
-            setReason(null);
+            setSubmitted(empty);
           }}
         >
           Try again

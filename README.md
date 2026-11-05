@@ -35,7 +35,7 @@ Every lesson has the same five parts, built so that you can *explain* a topic un
 
 1. **Concept**: the idea, with something to play with.
 2. **Under the hood**: the mechanism interviewers actually probe (formulas, costs, trade-offs).
-3. **Code**: a runnable example.
+3. **Code**: a worked example in Python and JavaScript. Examples show the idea and may call helpers they do not define, so not all of them run as they are.
 4. **Interview corner**: five real questions, a strong answer, a weak answer, and the likely follow-up.
 5. **Challenges**: a quiz, a spot-the-bug exercise and a code challenge, all scored.
 
@@ -45,7 +45,7 @@ Every lesson has the same five parts, built so that you can *explain* a topic un
 
 ## The curriculum
 
-Tracks unlock in order. Passing a track's gate (a 10-question quiz, 70% to pass) opens the next one.
+Tracks unlock in order. Passing a track's gate (a 10-question quiz, 70% to pass) opens the next one. The lessons are recommended rather than required, so someone who already knows a track can test out with its gate.
 
 | # | Track | Level | Lessons |
 |---|---|---|---|
@@ -85,11 +85,11 @@ Sorters are **practice only**: they are not scored or stored. Scored work happen
 
 | Kind | How it is graded |
 |---|---|
-| **Quiz** (the track **gate** and the **capstone**) | On the **server**. Per-question explanations are revealed only after submitting. |
+| **Quiz** (the track **gate** and the **capstone**) | On the **server**. Correct answers and explanations are revealed only after a pass. A failed attempt shows which questions were wrong and starts a 15-minute wait before the next try. |
 | **Spot the bug** | On the server: the learner picks the buggy line *and* the reason; both are scored. |
 | **Code** | On the **server**, in a WebAssembly sandbox (QuickJS) with a memory limit and a 3 s deadline. The browser sends the *code*, never a result. A Web Worker in the browser gives instant feedback while writing, but only the server's run counts. See [limitations](#status-and-known-limitations). |
 
-XP is awarded **once**, the first time each challenge is passed. A lesson is complete when all three of its challenges are passed, and a track's gate only opens when all six of its lessons are complete.
+XP is awarded **once**, the first time each challenge is passed. A lesson is complete when all three of its challenges are passed, and a learner can take a track's gate at any time once that track is unlocked. If a code challenge has them stuck, they can open the reference solution after using every hint; passing it afterwards earns no XP.
 
 ### 3. Integrity of the scoring
 
@@ -144,7 +144,7 @@ flowchart LR
 
 ### 6. Practice tools
 
-- **Placement check** (`/assess`): twenty questions, two per track, from fundamentals upward. It suggests the first track you were not solid in and shows a score per track. It is advisory: nothing is scored or saved, and it unlocks nothing, because track locks still depend on passing each gate.
+- **Placement check** (`/assess`): twenty questions, two per track, from fundamentals upward. It suggests the first track you were not solid in and shows a score per track. It is advisory: nothing is scored or saved, and it unlocks nothing itself. To skip ahead, a learner passes each earlier track's gate.
 - **Mock interview** (`/interview`): reading an answer is not the same as giving one. You are asked a real interview question from the lessons, write the answer you would say out loud, then compare it with a strong answer and a common shallow one. A key-term check shows which distinctive words of the strong answer you used, as **word overlap and not a grade**, and you rate yourself. At the end you get the lessons to revisit. There is no model call involved, so it cannot be fooled or run up a bill, but it also cannot judge meaning, which is why the rating is yours.
 
 ## Architecture
@@ -200,7 +200,7 @@ sequenceDiagram
     API->>C: look up challenge (full answer key)
     API->>DB: load this user's progress
     API->>API: reject if the track is locked (403)
-    API->>API: reject a gate until all lessons are done, and the capstone until all gates (403)
+    API->>API: reject the capstone until all gates are passed (403), and a retry during the 15-minute exam wait (429)
     API->>API: translate display positions to original options, then grade
     API->>DB: save the submission (every attempt is kept)
     API->>DB: award XP once, update the streak and badges

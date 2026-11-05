@@ -8,9 +8,11 @@ import { gradeCodeInSandbox } from "@/lib/code-grader";
 import { readJsonBody } from "@/lib/read-json";
 import { limited, POLICIES } from "@/lib/rate-limit";
 import { connectDB } from "@/lib/db";
+import { EXAM_RETRY_SECONDS, hideAnswers, retryMessage, retryWaitSeconds } from "@/lib/exam-core";
 import { reconcileIfAllowed } from "@/lib/email-verification";
 import { awardXp, claimFirstPass, getUserProgress, grantBadge, isCapstoneUnlocked, isTrackUnlocked } from "@/lib/progress";
 import { Progress } from "@/models/Progress";
+import { SolutionView } from "@/models/SolutionView";
 import { Submission } from "@/models/Submission";
 import { User } from "@/models/User";
 
@@ -144,23 +146,26 @@ export async function POST(request: Request) {
           { status: 403 }
         );
       }
-
-      // The gate can't be attempted until every lesson in the track is done.
-      if (challenge.kind === "gate") {
-        const ready = track.lessons.every((l) => before.completedLessons.has(l.slug));
-        if (!ready) {
-          return NextResponse.json(
-            { error: "Complete every lesson in this track before the gate." },
-            { status: 403 }
-          );
-        }
-      }
     } else if (!isCapstoneUnlocked(before)) {
       // The capstone belongs to the course, not a track: it needs every gate.
       return NextResponse.json(
         { error: `Pass all ${tracks.length} track gates before the capstone.` },
         { status: 403 }
       );
+    }
+
+    // Gates and the capstone can be taken without the lessons, so retries are spaced out to stop trial and error.
+    const isExam = challenge.kind === "gate" || challenge.kind === "capstone";
+    const alreadyPassed = before.passed.has(challenge.id);
+    if (isExam && !alreadyPassed) {
+      const lastFail = await Submission.findOne({ userId, challengeId: challenge.id, passed: false })
+        .sort({ createdAt: -1 })
+        .select("createdAt")
+        .lean<{ createdAt: Date }>();
+      const wait = retryWaitSeconds(lastFail?.createdAt, Date.now());
+      if (wait > 0) {
+        return NextResponse.json({ error: retryMessage(wait), retryAfterSeconds: wait }, { status: 429 });
+      }
     }
 
     // Grade only now that the learner is allowed to attempt this challenge. Running code costs real CPU, so it also has
@@ -178,9 +183,10 @@ export async function POST(request: Request) {
     if (!graded) return NextResponse.json({ error: "Malformed answer" }, { status: 400 });
 
     // Only one request can win the claim for a first pass, so a burst of identical passes awards XP once.
-    const alreadyPassed = before.passed.has(challenge.id);
     const firstPass = graded.passed && !alreadyPassed && (await claimFirstPass(userId, challenge.id));
-    const xpAwarded = firstPass ? challenge.xp : 0;
+    const solutionViewed =
+      firstPass && challenge.kind === "code" && Boolean(await SolutionView.exists({ userId, challengeId: challenge.id }));
+    const xpAwarded = firstPass && !solutionViewed ? challenge.xp : 0;
     const attempt = (await Submission.countDocuments({ userId, challengeId: challenge.id })) + 1;
     if (attempt > MAX_ATTEMPTS_PER_CHALLENGE) {
       return NextResponse.json(
@@ -249,6 +255,12 @@ export async function POST(request: Request) {
       }
     }
 
+    // A failed exam shows which questions were wrong, but never the key.
+    const answersHidden = isExam && !graded.passed && !alreadyPassed;
+    const feedback = answersHidden
+      ? { results: hideAnswers((graded.feedback as { results: Parameters<typeof hideAnswers>[0] }).results) }
+      : graded.feedback;
+
     return NextResponse.json({
       ok: true,
       score: graded.score,
@@ -261,7 +273,10 @@ export async function POST(request: Request) {
       capstoneCompleted,
       certificates,
       certificatesHeld,
-      feedback: graded.feedback,
+      solutionViewed,
+      answersHidden,
+      retryMessage: answersHidden ? retryMessage(EXAM_RETRY_SECONDS) : undefined,
+      feedback,
     });
   } catch (err) {
     console.error("[submit]", err);

@@ -65,13 +65,6 @@ export function trackCompletion(
   return challengeIds.filter((id) => progress.passed.has(id)).length / challengeIds.length;
 }
 
-/** A track's gate unlocks once every lesson in it is complete. */
-export function isGateUnlocked(trackSlug: string, progress: UserProgress): boolean {
-  const track = getTrack(trackSlug);
-  if (!track || !track.gate) return false;
-  return track.lessons.every((l) => progress.completedLessons.has(l.slug));
-}
-
 /** The capstone opens once every track gate has been passed (or in review mode). */
 export function isCapstoneUnlocked(progress: UserProgress): boolean {
   if (reviewUnlockAll()) return true;
