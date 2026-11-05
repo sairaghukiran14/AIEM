@@ -1,5 +1,5 @@
 import { Suspense } from "react";
-import Link from "next/link";
+import { FastLink as Link } from "@/components/FastLink";
 import { Award, Flame, Trophy, Zap } from "lucide-react";
 
 import { courseTotals, publishedTracks, tracks, trackXp } from "@/content";
@@ -10,9 +10,25 @@ import { connectDB } from "@/lib/db";
 import { isTrackUnlocked, loadProgress, trackCompletion } from "@/lib/progress";
 import { Submission } from "@/models/Submission";
 
-import { DashboardSkeleton } from "./DashboardSkeleton";
+import { DashboardSkeleton } from "@/components/PageSkeletons";
 
 export const metadata = { title: "Dashboard" };
+
+type RecentSubmission = { challengeId: string; score: number; maxScore: number; passed: boolean; createdAt: Date };
+
+async function loadRecentActivity(userId: string): Promise<RecentSubmission[]> {
+  try {
+    await connectDB();
+    return await Submission.find({ userId })
+      .sort({ createdAt: -1 })
+      .limit(8)
+      .select("challengeId score maxScore passed createdAt")
+      .lean();
+  } catch {
+    // Recent activity is non-essential; the rest of the page still renders.
+    return [];
+  }
+}
 
 export default async function DashboardPage() {
   // Redirect before streaming starts, so a signed-out visit still gets a real redirect.
@@ -25,19 +41,7 @@ export default async function DashboardPage() {
 }
 
 async function DashboardContent({ user }: { user: Awaited<ReturnType<typeof requireUser>> }) {
-  const progress = await loadProgress(user.id);
-
-  let recent: { challengeId: string; score: number; maxScore: number; passed: boolean; createdAt: Date }[] = [];
-  try {
-    await connectDB();
-    recent = await Submission.find({ userId: user.id })
-      .sort({ createdAt: -1 })
-      .limit(8)
-      .select("challengeId score maxScore passed createdAt")
-      .lean();
-  } catch {
-    // Recent activity is non-essential; the rest of the page still renders.
-  }
+  const [progress, recent] = await Promise.all([loadProgress(user.id), loadRecentActivity(user.id)]);
 
   // Resume where the user left off: the first unfinished lesson in the first unlocked track.
   let resumeTrack: (typeof publishedTracks)[number] | undefined;

@@ -1,4 +1,5 @@
 import { LogoMark } from "@/components/Logo";
+import { NavigationFeedback } from "@/components/NavigationFeedback";
 import Link from "next/link";
 
 import { courseTotals } from "@/content";
@@ -41,7 +42,7 @@ export default function AuthLayout({ children }: { children: React.ReactNode }) 
           <Link href="/" aria-label="AIEM home" className="mb-8 inline-flex lg:hidden">
             <LogoMark size="sm" />
           </Link>
-          {children}
+          <NavigationFeedback compact>{children}</NavigationFeedback>
         </div>
       </main>
     </div>

@@ -1,4 +1,4 @@
-import Link from "next/link";
+import { FastLink as Link } from "@/components/FastLink";
 
 const SIZES = {
   sm: "px-2 py-1 text-[13px] rounded-md",

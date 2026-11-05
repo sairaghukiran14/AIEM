@@ -71,6 +71,11 @@
   }
 }
 
+/* Short pages and skeletons have no scrollbar. Reserve its space so that the layout does not jump sideways. */
+html {
+  scrollbar-gutter: stable;
+}
+
 body {
   background: var(--bg);
   color: var(--text);
@@ -126,6 +131,9 @@ body {
     transition: all 0.15s ease;
     cursor: pointer;
     white-space: nowrap;
+  }
+  .btn:active:not(:disabled) {
+    transform: scale(0.98);
   }
   .btn:disabled {
     opacity: 0.45;
@@ -213,6 +221,42 @@ body {
   }
   .prose-lesson li {
     margin-bottom: 0.4rem;
+  }
+}
+
+/* Answer taps straight away instead of waiting to see whether they become a double tap. */
+a,
+button,
+label,
+summary {
+  touch-action: manipulation;
+}
+
+/* A thin bar that starts the instant a link is clicked. Flat color; only its width moves. */
+.nav-progress {
+  position: fixed;
+  top: 0;
+  left: 0;
+  z-index: 60;
+  height: 3px;
+  width: 0;
+  background: var(--accent);
+  animation: nav-progress 6s cubic-bezier(0.05, 0.8, 0.2, 1) forwards;
+}
+@keyframes nav-progress {
+  to {
+    width: 92%;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .nav-progress {
+    animation: none;
+    width: 60%;
+  }
+}
+@media print {
+  .nav-progress {
+    display: none;
   }
 }
 

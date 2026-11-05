@@ -18,6 +18,10 @@ const securityHeaders = [
 
 const nextConfig: NextConfig = {
   poweredByHeader: false,
+  experimental: {
+    // Going back to a page seen moments ago reuses it. Submits, login and logout call router.refresh(), which clears this.
+    staleTimes: { dynamic: 30, static: 60 },
+  },
   // The code sandbox is a WebAssembly engine loaded from node_modules at run time, so it is not bundled, and its
   // files are traced into the serverless function that uses it.
   serverExternalPackages: ["quickjs-emscripten", "quickjs-emscripten-core", "@jitl/quickjs-wasmfile-release-sync", "@jitl/quickjs-ffi-types"],

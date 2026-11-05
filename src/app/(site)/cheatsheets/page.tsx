@@ -1,4 +1,4 @@
-import Link from "next/link";
+import { FastLink as Link } from "@/components/FastLink";
 import { FileText } from "lucide-react";
 
 import { tracks } from "@/content";

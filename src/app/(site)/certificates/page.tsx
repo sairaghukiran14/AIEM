@@ -1,5 +1,5 @@
 import { Suspense } from "react";
-import Link from "next/link";
+import { FastLink as Link } from "@/components/FastLink";
 import { Award, Download, ExternalLink, Lock } from "lucide-react";
 
 import { tracks } from "@/content";
@@ -13,7 +13,7 @@ import {
   type CertificateView,
 } from "@/lib/certificates";
 
-import { CertificatesSkeleton } from "./CertificatesSkeleton";
+import { CertificatesSkeleton } from "@/components/PageSkeletons";
 
 export const metadata = { title: "My certificates" };
 

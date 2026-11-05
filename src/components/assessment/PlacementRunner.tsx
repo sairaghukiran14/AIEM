@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import Link from "next/link";
+import { FastLink as Link } from "@/components/FastLink";
 import { Check, RotateCcw, X } from "lucide-react";
 
 import { seededOrder } from "@/lib/shuffle";

@@ -1,7 +1,8 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import Link from "next/link";
+import { FastLink as Link } from "@/components/FastLink";
+import { announceNavigation } from "@/components/NavigationFeedback";
 import { useRouter } from "next/navigation";
 import { ArrowRight, Check, Eye, RotateCcw } from "lucide-react";
 
@@ -109,7 +110,11 @@ export function InterviewRunner({ questions, track, count }: { questions: MockQu
         <div className="flex flex-wrap gap-3">
           <button
             className="btn btn-primary"
-            onClick={() => router.push(`/interview?track=${track}&n=${count}&round=${Date.now()}`)}
+            onClick={() => {
+              const href = `/interview?track=${track}&n=${count}&round=${Date.now()}`;
+              announceNavigation(href);
+              router.push(href);
+            }}
           >
             <RotateCcw className="size-4" /> New set
           </button>

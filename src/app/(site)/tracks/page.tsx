@@ -1,4 +1,4 @@
-import Link from "next/link";
+import { FastLink as Link } from "@/components/FastLink";
 import { CheckCircle2, Lock } from "lucide-react";
 
 import { TrackIcon } from "@/components/TrackIcon";

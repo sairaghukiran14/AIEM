@@ -2,6 +2,7 @@ import "server-only";
 
 import bcrypt from "bcryptjs";
 import { randomUUID } from "node:crypto";
+import { cache } from "react";
 import { SignJWT, jwtVerify } from "jose";
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
@@ -166,8 +167,11 @@ function toSessionUser(doc: UserDoc): SessionUser {
   };
 }
 
-/** Returns the signed-in user, or null. */
-export async function getCurrentUser(): Promise<SessionUser | null> {
+/**
+ * Returns the signed-in user, or null. The header and the page both ask during one render, so the answer is shared
+ * for that render instead of repeating the database lookups.
+ */
+export const getCurrentUser = cache(async (): Promise<SessionUser | null> => {
   const session = await readSession();
   if (!session) return null;
 
@@ -178,7 +182,7 @@ export async function getCurrentUser(): Promise<SessionUser | null> {
     // A database outage should not blow up every page; treat it as signed out.
     return null;
   }
-}
+});
 
 /** For pages that require a session. Redirects to /login when there is none. */
 export async function requireUser(returnTo?: string): Promise<SessionUser> {

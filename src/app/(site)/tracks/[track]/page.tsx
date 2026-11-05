@@ -1,5 +1,4 @@
-import { Suspense } from "react";
-import Link from "next/link";
+import { FastLink as Link } from "@/components/FastLink";
 import { notFound } from "next/navigation";
 import { CheckCircle2, Circle, Clock, FileText, Lock } from "lucide-react";
 
@@ -8,8 +7,6 @@ import { TrackIcon } from "@/components/TrackIcon";
 import { getTrack, toClientChallenge, tracks, trackXp } from "@/content";
 import { getCurrentUser } from "@/lib/auth";
 import { isGatePassed, isGateUnlocked, isTrackUnlocked, loadProgress } from "@/lib/progress";
-
-import { TrackSkeleton } from "./TrackSkeleton";
 
 type Props = { params: Promise<{ track: string }> };
 
@@ -22,15 +19,6 @@ export default async function TrackPage({ params }: Props) {
   const track = getTrack((await params).track);
   if (!track || !track.published) notFound();
 
-  // The 404 check above runs before streaming starts, so unknown tracks keep their 404 status.
-  return (
-    <Suspense fallback={<TrackSkeleton />}>
-      <TrackContent track={track} />
-    </Suspense>
-  );
-}
-
-async function TrackContent({ track }: { track: NonNullable<ReturnType<typeof getTrack>> }) {
   const user = await getCurrentUser();
   const progress = await loadProgress(user?.id);
 

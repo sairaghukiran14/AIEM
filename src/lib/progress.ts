@@ -1,5 +1,7 @@
 import "server-only";
 
+import { cache } from "react";
+
 import { allGatesPassed } from "@/lib/certificate-core";
 import { connectDB } from "@/lib/db";
 import { getTrack, tracks } from "@/content";
@@ -45,14 +47,14 @@ export function emptyProgress(): UserProgress {
 }
 
 /** For pages: signed-out users and database hiccups both fall back to empty progress. */
-export async function loadProgress(userId: string | null | undefined): Promise<UserProgress> {
+export const loadProgress = cache(async (userId: string | null | undefined): Promise<UserProgress> => {
   if (!userId) return emptyProgress();
   try {
     return await getUserProgress(userId);
   } catch {
     return emptyProgress();
   }
-}
+});
 
 /** Fraction (0-1) of a track's challenges the user has passed, gate included. */
 export function trackCompletion(
