@@ -65,8 +65,6 @@ function Runner({ initial, onExit }: { initial: AttemptView; onExit: () => void 
 
   useEffect(() => {
     headingRef.current?.focus();
-    setPicked(null);
-    setError(null);
   }, [viewing]);
 
   const submit = useCallback(
@@ -104,7 +102,11 @@ function Runner({ initial, onExit }: { initial: AttemptView; onExit: () => void 
       return;
     }
     const nextOpen = questions.findIndex((x, i) => !x.answered && i !== viewing);
-    if (nextOpen !== -1) setViewing(nextOpen);
+    if (nextOpen !== -1) {
+      setPicked(null);
+      setError(null);
+      setViewing(nextOpen);
+    }
   }
 
   useEffect(() => {

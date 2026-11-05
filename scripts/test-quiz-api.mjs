@@ -133,7 +133,7 @@ async function main() {
     const stored = after.items;
     const want = core.summarise(stored.map((it) => ({ difficulty: it.difficulty, kind: it.kind, category: it.category, correct: it.correct, answered: it.answered, skipped: it.answered && it.chosen === null })));
     ok(after.status === "done" && after.score === want.score && after.maxScore === want.maxScore && after.percent === want.percent, `the stored score matches the rules (${after.score}/${after.maxScore} = ${after.percent}%)`);
-    const pts = stored.reduce((n, it, i) => n + (it.correct ? [0, 1, 2, 3][it.difficulty] : 0), 0);
+    const pts = stored.reduce((n, it) => n + (it.correct ? [0, 1, 2, 3][it.difficulty] : 0), 0);
     ok(after.score === pts, "points are 1, 2 and 3 for easy, medium and hard");
     ok(stored[0].correct === false && stored[1].answered && stored[2].chosen === null, "the wrong answer, the raced answer and the skip are recorded as such");
     ok(last.body.result.summary.skipped === 1, "the result counts the skipped question");
