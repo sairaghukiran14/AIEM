@@ -488,6 +488,15 @@ Conventions that keep the course consistent:
 
 ---
 
+## The quiz
+
+`/quiz` is a practice bank of **1,019 questions** across eleven topics, from LLM fundamentals through retrieval, agents, evals and fine-tuning to production, serving and scaling, plus a decision-making set and a debugging playbook. Each question is one of four types (**concept**, **decision**, **debugging**, **yes or no**) at one of three levels (easy, medium, hard).
+
+- **Build your own quiz:** pick a topic (or everything), a difficulty (mixed runs easy to hard), a type, and 10, 20, 30 or 50 questions. New quizzes avoid questions from the learner's last 15 quizzes while unseen ones remain.
+- **Feedback and score:** the right answer and the reasoning appear after each question. Easy questions score 1 point, medium 2, hard 3, and a skip scores 0. The result page shows the percentage, a rating, a breakdown by difficulty, type and topic, a link to the matching track for the weakest topic, and a full review. The quiz page keeps the best score, average, recent quizzes and how many questions the learner has mastered.
+- **Server-side grading.** The browser receives questions in a per-attempt shuffled order with no answer key. Each answer is posted, graded on the server and stored once (two simultaneous answers cannot both count); the key and explanation come back only after a question is answered. Unfinished quizzes resume and expire after three days. Quizzes are practice: they do not unlock tracks or certificates.
+- **Authoring.** Questions live in `src/content/quiz/<topic>.ts` as one-line calls: `c`, `d` and `b` take the level, the prompt, the **correct** option first, three wrong options and an explanation; `y` takes the level, the prompt, `true` or `false`, and an explanation. Append new questions to the end of a file so ids stay stable. `npm run verify:quiz` checks the bank like data: counts per topic, type and level, four different options, no "all of the above", no duplicate prompts, balanced yes/no answers, and that the right option is not the longest (or shortest) too often.
+
 ## Testing and verification
 
 `npm run verify` runs a suite designed around one idea: **the content is data, so check it like data.**

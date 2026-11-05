@@ -9,6 +9,7 @@ import { getCurrentUser } from "@/lib/auth";
 
 const NAV = [
   { href: "/tracks", label: "Tracks" },
+  { href: "/quiz", label: "Quiz" },
   { href: "/cheatsheets", label: "Cheatsheets" },
   { href: "/capstone", label: "Capstone" },
   { href: "/certificates", label: "Certificates" },

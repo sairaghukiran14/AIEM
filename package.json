@@ -15,10 +15,12 @@
     "verify:accounts": "node scripts/test-rate-limit-and-mail.mjs",
     "verify:interview": "node scripts/test-interview-terms.mjs",
     "verify:certificates": "node scripts/test-certificates.mjs && node scripts/test-certificate-pdf.mjs",
+    "verify:quiz": "node scripts/check-quiz.mjs && node scripts/test-quiz.mjs",
+    "test:quiz-api": "node scripts/test-quiz-api.mjs",
     "test:paused": "node scripts/test-email-paused.mjs",
     "e2e": "node scripts/e2e.mjs",
     "edge": "node scripts/edge-cases.mjs",
-    "verify": "npm run verify:structure && npm run verify:balance && npm run verify:blocks && npm run verify:solutions && npm run verify:interview && npm run verify:accounts && npm run verify:certificates"
+    "verify": "npm run verify:structure && npm run verify:balance && npm run verify:blocks && npm run verify:solutions && npm run verify:interview && npm run verify:accounts && npm run verify:certificates && npm run verify:quiz"
   },
   "dependencies": {
     "@fontsource/noto-serif": "^5.3.0",

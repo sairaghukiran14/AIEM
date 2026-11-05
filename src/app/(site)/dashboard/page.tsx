@@ -97,6 +97,9 @@ async function DashboardContent({ user }: { user: Awaited<ReturnType<typeof requ
             <Link href="/interview" className="btn btn-ghost">
               Mock interview
             </Link>
+            <Link href="/quiz" className="btn btn-ghost">
+              Quiz
+            </Link>
             <Link href="/assess" className="btn btn-ghost">
               Placement check
             </Link>

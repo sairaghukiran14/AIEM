@@ -47,6 +47,7 @@ jobs:
             sleep 1
           done
           npm run test:paused || { echo "--- server log ---"; cat server.log; exit 1; }
+          npm run test:quiz-api || { echo "--- server log ---"; cat server.log; exit 1; }
           # npm start spawns the real server as a child, so stop it by name and wait for the port to free up
           pkill -f "next-server" || true; pkill -f "next start" || true
           for i in $(seq 1 15); do curl -sf http://localhost:3000/login > /dev/null || break; sleep 1; done

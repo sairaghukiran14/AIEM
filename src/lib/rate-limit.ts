@@ -21,6 +21,8 @@ export const POLICIES = {
   healthIp: { name: "health-ip", limit: 60, windowSec: 60 },
   submitUser: { name: "submit-user", limit: 90, windowSec: 5 * 60 },
   codeUser: { name: "code-user", limit: 20, windowSec: 5 * 60 },
+  quizStartUser: { name: "quiz-start-user", limit: 30, windowSec: 60 * 60 },
+  quizAnswerUser: { name: "quiz-answer-user", limit: 400, windowSec: 5 * 60 },
   accountUser: { name: "account-user", limit: 10, windowSec: 60 * 60 },
 } satisfies Record<string, Policy>;
 
