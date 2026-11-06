@@ -1,10 +1,16 @@
 import { FastLink as Link } from "@/components/FastLink";
 import {
   ArrowRight,
+  AudioLines,
   Award,
   Check,
+  Compass,
   Flame,
+  Keyboard,
+  Lightbulb,
+  ListChecks,
   MessagesSquare,
+  Mic,
   ThumbsDown,
   ThumbsUp,
   Zap,
@@ -13,14 +19,21 @@ import {
 import { TrackIcon } from "@/components/TrackIcon";
 import { Tokenizer } from "@/components/visuals/Tokenizer";
 import { courseTotals, tracks } from "@/content";
+import { placementQuestions } from "@/content/assessment";
+import { quizBank, quizCategories } from "@/content/quiz";
+import { questionCount } from "@/lib/interview";
+import { LENGTHS } from "@/lib/live-interview-core";
 
 const LESSON_PARTS = [
   { title: "Concept", text: "The idea in plain language, with an interactive visual you can poke at." },
   { title: "Under the hood", text: "The mechanism interviewers actually probe: formulas, costs, trade-offs." },
-  { title: "Code", text: "A runnable example that makes the mechanism concrete." },
+  { title: "Code", text: "One worked example in both Python and JavaScript that makes the mechanism concrete." },
   { title: "Interview corner", text: "Real questions, a strong answer, and what a weak one sounds like." },
-  { title: "Challenges", text: "Quiz, spot-the-bug and real code, all scored. Pass to move on." },
+  { title: "Challenges", text: "Quiz, spot-the-bug and real code, graded on the server. Stuck? Hints lead to the solution." },
 ];
+
+/** Bar heights for the static voice-interview illustration: a drawing, not live audio. */
+const WAVE = [6, 14, 22, 12, 28, 18, 32, 20, 10, 24, 30, 16, 8, 20, 26, 12, 18, 6, 14, 22, 10];
 
 function SectionHeading({
   eyebrow,
@@ -43,6 +56,9 @@ function SectionHeading({
 export default function HomePage() {
   const sample = tracks[0].lessons[0].interview[0];
   const live = tracks.filter((t) => t.published).length;
+  const quizSize = quizBank.length.toLocaleString("en-GB");
+  const interviewQuestions = questionCount("mixed");
+  const lengths = `${LENGTHS.slice(0, -1).join(", ")} or ${LENGTHS.at(-1)}`;
 
   return (
     <div className="space-y-24 sm:space-y-32">
@@ -60,8 +76,8 @@ export default function HomePage() {
             </h1>
             <p className="mt-6 max-w-lg text-lg leading-relaxed text-text-muted">
               A structured course from &ldquo;what&apos;s a token?&rdquo; to production agents. Learn
-              from interactive visuals, prove it with scored challenges, and walk into interviews
-              knowing the answers.
+              from interactive visuals, prove it with scored challenges, then rehearse out loud with
+              an AI interviewer before the real one.
             </p>
             <div className="mt-9 flex flex-wrap gap-3">
               <Link href="/signup" className="btn btn-primary !px-6 !py-3 !text-base">
@@ -75,7 +91,8 @@ export default function HomePage() {
               {[
                 "Free to start",
                 "No credit card",
-                `${courseTotals.lessons} lessons live now`,
+                `${courseTotals.lessons} lessons`,
+                `${quizSize} quiz questions`,
               ].map((item) => (
                 <li key={item} className="flex items-center gap-1.5">
                   <Check className="size-4 text-text" /> {item}
@@ -106,9 +123,9 @@ export default function HomePage() {
         <dl className="grid grid-cols-2 overflow-hidden rounded-2xl border border-border-base bg-bg-card lg:grid-cols-4">
           {[
             [courseTotals.tracks, "tracks, beginner to advanced"],
-            [courseTotals.lessons, "lessons live today"],
-            [courseTotals.challenges, "scored challenges live"],
-            [courseTotals.xp.toLocaleString(), "XP to earn so far"],
+            [courseTotals.lessons, "lessons, each with a quiz, bug hunt and code"],
+            [quizSize, "practice quiz questions, easy to hard"],
+            [interviewQuestions, "interview questions with model answers"],
           ].map(([value, label], i) => (
             <div
               key={label}
@@ -141,6 +158,112 @@ export default function HomePage() {
             </li>
           ))}
         </ol>
+      </section>
+
+      {/* ----------------------------------------------- interview practice */}
+      <section>
+        <SectionHeading eyebrow="Interview practice" title="Rehearse out loud before it counts.">
+          Knowing the answer and saying it under pressure are different skills. Practise both, from a
+          quick quiz to a full spoken interview.
+        </SectionHeading>
+
+        <div className="grid grid-cols-1 gap-5 lg:grid-cols-3">
+          {/* Live voice interview: the headline feature */}
+          <article className="card flex flex-col border-2 !border-text p-6 sm:p-8 lg:col-span-2 lg:row-span-2">
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="chip !border-text !bg-text !text-white">New</span>
+              <span className="flex items-center gap-1.5 text-sm font-medium text-text-muted">
+                <Mic className="size-4" /> Live voice interview
+              </span>
+            </div>
+            <h3 className="mt-4 text-2xl font-semibold leading-snug tracking-tight sm:text-3xl">
+              An AI interviewer that listens and follows up.
+            </h3>
+            <p className="mt-3 max-w-xl leading-relaxed text-text-muted">
+              It asks questions out loud, hears your spoken answers and probes what you actually said. The
+              questions get harder or easier as you go, and you get a scorecard at the end, as in a real interview.
+            </p>
+
+            {/* A drawing of the call, not a live recording. */}
+            <div aria-hidden="true" className="mt-6 space-y-3 rounded-xl border border-border-base bg-bg p-4">
+              <div className="flex items-start gap-3">
+                <span className="flex size-8 shrink-0 items-center justify-center rounded-full bg-text text-white">
+                  <AudioLines className="size-4" />
+                </span>
+                <p className="rounded-xl rounded-tl-sm bg-bg-card px-3 py-2 text-sm leading-relaxed shadow-sm">
+                  You mentioned chunk size. How would you pick it, and what would tell you it was wrong?
+                </p>
+              </div>
+              <div className="flex items-center justify-end gap-3">
+                <div className="flex h-9 items-center gap-[3px] rounded-xl rounded-tr-sm border border-border-base bg-bg-card px-3">
+                  {WAVE.map((h, i) => (
+                    <span key={i} className="w-[3px] rounded-full bg-text-muted" style={{ height: h }} />
+                  ))}
+                </div>
+                <span className="flex size-8 shrink-0 items-center justify-center rounded-full border border-border-strong">
+                  <Mic className="size-4" />
+                </span>
+              </div>
+            </div>
+
+            <ul className="mt-6 grid gap-x-6 gap-y-2 text-sm text-text-muted sm:grid-cols-2">
+              {[
+                `${lengths} questions, on one track or all of them`,
+                "Difficulty moves up or down with your answers",
+                "A scorecard: overall score, notes on each answer, what to practise next",
+                "Answer in English, or mixed with an Indian language",
+              ].map((item) => (
+                <li key={item} className="flex items-start gap-2">
+                  <Check className="mt-0.5 size-4 shrink-0 text-text" /> {item}
+                </li>
+              ))}
+            </ul>
+
+            <div className="mt-auto flex flex-wrap items-center gap-x-4 gap-y-2 pt-7">
+              <Link href="/interview/live" className="btn btn-primary">
+                Start a voice interview <ArrowRight className="size-4" />
+              </Link>
+              <span className="text-xs text-text-dim">
+                Free account needed. Up to 3 a day, 1 of them a long one. Your audio is never stored.
+              </span>
+            </div>
+          </article>
+
+          {/* Quiz bank */}
+          <Link href="/quiz" className="card group flex flex-col p-6 transition-colors hover:border-text sm:p-8">
+            <p className="flex items-center gap-1.5 text-sm font-medium text-text-muted">
+              <ListChecks className="size-4" /> Quiz
+            </p>
+            <p className="mt-4 text-4xl font-semibold tracking-tight">{quizSize}</p>
+            <p className="mt-1 text-sm text-text-muted">
+              questions in {quizCategories.length} topics: concepts, decisions, debugging and yes-or-no calls. The
+              wrong options are meant to tempt you.
+            </p>
+            <p className="mt-auto flex items-center gap-1 pt-5 text-sm font-medium">
+              Take a quiz <ArrowRight className="size-3.5 transition-transform group-hover:translate-x-0.5" />
+            </p>
+          </Link>
+
+          {/* Typed mock interview and placement check */}
+          <div className="grid gap-5">
+            <Link href="/interview" className="card group flex flex-col p-6 transition-colors hover:border-text">
+              <p className="flex items-center gap-1.5 text-sm font-medium text-text-muted">
+                <Keyboard className="size-4" /> Typed mock interview
+              </p>
+              <p className="mt-2 text-sm text-text-muted">
+                Write your answer, then compare it with a strong one and the key terms it should cover.
+              </p>
+            </Link>
+            <Link href="/assess" className="card group flex flex-col p-6 transition-colors hover:border-text">
+              <p className="flex items-center gap-1.5 text-sm font-medium text-text-muted">
+                <Compass className="size-4" /> Placement check
+              </p>
+              <p className="mt-2 text-sm text-text-muted">
+                {placementQuestions.length} questions, about ten minutes. Find out which track to start with.
+              </p>
+            </Link>
+          </div>
+        </div>
       </section>
 
       {/* ---------------------------------------------------------- bento */}
@@ -227,6 +350,9 @@ export default function HomePage() {
             <p className="mt-4 text-xs text-text-dim">
               Click the broken line, then say why. Both are scored.
             </p>
+            <p className="mt-2 flex items-center gap-1.5 text-xs text-text-dim">
+              <Lightbulb className="size-3.5" /> Stuck on code? Hints come first, then the solution.
+            </p>
           </article>
 
           {/* Progress */}
@@ -268,9 +394,10 @@ export default function HomePage() {
 
       {/* -------------------------------------------------------- roadmap */}
       <section>
-        <SectionHeading eyebrow="The roadmap" title="Eight tracks. One path.">
-          Each track unlocks when you pass the gate challenge of the one before it.{" "}
-          {live} {live === 1 ? "track is" : "tracks are"} live; the rest are on the way.
+        <SectionHeading eyebrow="The roadmap" title={`${tracks.length} tracks. One path.`}>
+          Each track unlocks when you pass the gate of the one before it. Already know a track&apos;s
+          material? Take its gate straight away and test out.
+          {live < tracks.length && ` ${live} of ${tracks.length} tracks are live; the rest are on the way.`}
         </SectionHeading>
 
         <ol className="grid grid-cols-1 gap-3 md:grid-cols-2">
